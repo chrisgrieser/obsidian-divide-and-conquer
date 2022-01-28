@@ -1,9 +1,9 @@
 {
-	"id": "{{plugin-id}}",
-	"name": "{{plugin-name}}",
+	"id": "obsidian-divide-and-conquer",
+	"name": "Divide & Conquer",
 	"version": "0.1",
 	"minAppVersion": "0.13.19",
-	"description": "{{plugin-desc}}",
+	"description": "An Obsidian plugin that provides commands for bulk enabling/disabling of plugins. Intended for power users with many plugins.",
 	"author": "pseudometa",
 	"authorUrl": "https://chris-grieser.de/",
 	"isDesktopOnly": false

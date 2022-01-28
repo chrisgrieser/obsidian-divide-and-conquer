@@ -6,7 +6,7 @@ on:
       - "*"
 
 env:
-  PLUGIN_NAME: {{plugin-id}} # Change this to match the id of your plugin.
+  PLUGIN_NAME: obsidian-divide-and-conquer # Change this to match the id of your plugin.
 
 jobs:
   build:

@@ -1,22 +1,30 @@
-# {{plugin-name}}
+# ⚔️ Divide & Conquer
 
-<!-- ![](https://img.shields.io/github/downloads/chrisgrieser/{{plugin-id}}/total?label=Total%20Downloads&style=plastic) ![](https://img.shields.io/github/v/release/chrisgrieser/{{plugin-id}}?label=Latest%20Release&style=plastic) [![](https://img.shields.io/badge/changelog-click%20here-FFE800?style=plastic)](Changelog.md) -->
+<!-- ![](https://img.shields.io/github/downloads/chrisgrieser/obsidian-divide-and-conquer/total?label=Total%20Downloads&style=plastic) ![](https://img.shields.io/github/v/release/chrisgrieser/obsidian-divide-and-conquer?label=Latest%20Release&style=plastic) [![](https://img.shields.io/badge/changelog-click%20here-FFE800?style=plastic)](Changelog.md) -->
 
-{{plugin-desc}}
+An [Obsidian](https://obsidian.md/) plugin that provides commands for bulk enabling/disabling of plugins. Intended for power users with many plugins.
 
 ## Table of Contents
 <!-- MarkdownTOC levels="2" -->
 
+- [Commands Added](#commands-added)
 - [Installation](#installation)
 - [Contribute](#contribute)
 - [About the Developer](#about-the-developer)
 
 <!-- /MarkdownTOC -->
 
+## Commands Added
+- Disable half of the enabled plugins
+- Enable half of the disabled plugins
+- Disable all plugins
+- Enable all plugin
+- Toggle all plugins
+
 ## Installation
 Right now, the plugin is still in beta. It can be installed with the [BRAT Plugin](https://github.com/TfTHacker/obsidian42-brat).
 
-When published,it will be available in Obsidian's Community Plugin Browser via: `Settings` → `Community Plugins` → `Browse` → Search for *"{{plugin-name}}"*
+When published,it will be available in Obsidian's Community Plugin Browser via: `Settings` → `Community Plugins` → `Browse` → Search for *"Divide & Conquer"*
 
 ## Contribute
 Please use the `.eslintrc` configuration located in the repository and run eslint before doing a pull request, and please do *not* use `prettier`. 🙂
