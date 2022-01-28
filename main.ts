@@ -8,24 +8,40 @@ export default class footnoteIndicator extends Plugin {
 		console.log("Divide & Conquer Plugin loaded.");
 
 		this.addCommand({
-			id: "disable-all-plugins",
-			name: "Test Notice",
-			callback: () => new Notice ("I am a test notice. 👋 \n\nI will stay here until you click me.", 0),
+			id: "disable-all",
+			name: "Disable all plugins",
+			callback: () => this.divideConquer("disable-all"),
 		});
 
 		this.addCommand({
-			id: "cycle-views",
-			name: "Cycle between Source Mode, Live Preview, and Reading Mode",
-			callback: () => this.cycleViews(),
+			id: "enable-all",
+			name: "Enable all plugin",
+			callback: () => this.divideConquer("enable-all",
+		});
+
+		this.addCommand({
+			id: "toggle-all",
+			name: "Toggle all plugins (Disable enabled plugins & enable disabled ones)",
+			callback: () => this.divideConquer("toggle-all"),
+		});
+
+		this.addCommand({
+			id: "disable-half",
+			name: "Disable half of the enabled plugins",
+			callback: () => this.divideConquer("disable-half"),
+		});
+
+		this.addCommand({
+			id: "enable-half",
+			name: "Enable half of the disabled plugins",
+			callback: () => this.divideConquer("enable-half"),
 		});
 
 	}
 
-	// - disable all
-	// - enable all
-	// - disable half of enabled
-	// - enable half of disabled
-	// - switch disabled and enabled
+	divideConquer (string: mode) {
+		console.log (mode);
+	}
 
 
 }

@@ -25,7 +25,7 @@ Even though that process is the quickest method of finding the culprit-plugin, i
 - Enable half of the disabled plugins
 - Disable all plugins
 - Enable all plugin
-- Toggle all plugins
+- Toggle all plugins (Disable enabled plugins & enable disabled ones)
 
 (Note that to be able to fulfill its duty, this plugin will not disable itself.)
 
