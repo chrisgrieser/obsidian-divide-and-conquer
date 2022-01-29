@@ -1,0 +1,7 @@
+- 2022-01-29	release 0.2
+- 2022-01-29	finsihed prototype
+- 2022-01-29	setup type safety
+- 2022-01-29	command setup
+- 2022-01-29	explain bisect approach and suefulness of this plugin
+- 2022-01-28	initial setup
+- 2022-01-28	Initial commit
