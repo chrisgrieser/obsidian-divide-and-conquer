@@ -15,10 +15,12 @@ An [Obsidian](https://obsidian.md/) plugin that provides commands for bulk enabl
 
 <!-- /MarkdownTOC -->
 
-## How this helps with Debugging
-You have a problem with Obsidian and have confirmed that the issue goes away when disabling safe mode. Now, you have to narrow down which plugin misbehaves. The most efficient method for doing so is to to bisect, meaning that you disable half of the plugins, and depending on whether the issue still occurs or not, you can rule out one half of plugins.
 
-Even though that process is the quickest method of finding the culprit-plugin, it is still quite cumbersome for power users have 40, 50 or more plugins. *Divide & Conquer* provides some useful commands for bulk disabling/enabling of plugins, to make the power user's life easier.
+
+## How this helps with Debugging
+You have a problem with Obsidian and have confirmed that the issue goes away when enabling safe mode. Now, you have to narrow down which plugin misbehaves. The most efficient method for doing so is to to bisect, meaning that you disable half of the plugins, and depending on whether the issue still occurs or not, you can rule out one half of plugins. 
+
+Even though that process is the quickest method of finding the culprit-plugin, it is still quite cumbersome for power users who have 40, 50 or more plugins. *Divide & Conquer* provides some useful commands for bulk disabling/enabling of plugins, to make the power user's life easier.
 
 ## Commands Added
 - Disable half of the enabled plugins
@@ -33,7 +35,7 @@ Even though that process is the quickest method of finding the culprit-plugin, i
 ## Installation
 Right now, the plugin is still in beta. It can be installed with the [BRAT Plugin](https://github.com/TfTHacker/obsidian42-brat).
 
-When published,it will be available in Obsidian's Community Plugin Browser via: `Settings` → `Community Plugins` → `Browse` → Search for *"Divide & Conquer"*
+When published, it will be available in Obsidian's Community Plugin Browser via: `Settings` → `Community Plugins` → `Browse` → Search for *"Divide & Conquer"*
 
 ## Contribute
 Please use the `.eslintrc` configuration located in the repository and run eslint before doing a pull request, and please do *not* use `prettier`. 🙂
