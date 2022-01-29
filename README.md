@@ -2,7 +2,7 @@
 
 <!-- ![](https://img.shields.io/github/downloads/chrisgrieser/obsidian-divide-and-conquer/total?label=Total%20Downloads&style=plastic) ![](https://img.shields.io/github/v/release/chrisgrieser/obsidian-divide-and-conquer?label=Latest%20Release&style=plastic) [![](https://img.shields.io/badge/changelog-click%20here-FFE800?style=plastic)](Changelog.md) -->
 
-An [Obsidian](https://obsidian.md/) plugin that provides commands for bulk enabling/disabling of plugins. Useful for debugging when one has many plugin.
+An [Obsidian](https://obsidian.md/) plugin that provides commands for bulk enabling/disabling of plugins. Useful for debugging when you have many plugins.
 
 ## Table of Contents
 <!-- MarkdownTOC levels="2" -->

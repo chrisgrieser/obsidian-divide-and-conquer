@@ -3,7 +3,7 @@
 	"name": "Divide & Conquer",
 	"version": "0.2",
 	"minAppVersion": "0.13.19",
-	"description": "An Obsidian plugin that provides commands for bulk enabling/disabling of plugins. Useful for debugging when one has many plugin.",
+	"description": "Provides commands for bulk enabling/disabling of plugins. Useful for debugging when you have many plugins.",
 	"author": "pseudometa",
 	"authorUrl": "https://chris-grieser.de/",
 	"isDesktopOnly": false
