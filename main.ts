@@ -4,10 +4,10 @@ import { Plugin, Notice } from "obsidian";
 declare module "obsidian" {
 	interface App {
 		plugins: {
-			enabledPlugins?: () => Set<string>;
+			enabledPlugins?: Set<string>;
 			manifests: () => string[];
-			disablePluginAndSave: (pluginID: string) => void;
-			enablePluginAndSave: (pluginID: string) => void;
+			disablePluginAndSave: (id: string) => void;
+			enablePluginAndSave: (id: string) => void;
 		};
 		commands: {
 			executeCommandById: (commandID: string) => void;
@@ -24,6 +24,12 @@ export default class divideAndConquer extends Plugin {
 		console.log("Divide & Conquer Plugin loaded.");
 
 		this.addCommand({
+			id: "count-enabled-and-disabled",
+			name: "Count enabled and disabled plugins",
+			callback: () => this.divideConquer("count"),
+		});
+
+		this.addCommand({
 			id: "disable-all",
 			name: "Disable all plugins",
 			callback: () => this.divideConquer("disable", "all"),
@@ -31,7 +37,7 @@ export default class divideAndConquer extends Plugin {
 
 		this.addCommand({
 			id: "enable-all",
-			name: "Enable all plugin",
+			name: "Enable all plugins",
 			callback: () => this.divideConquer("enable", "all"),
 		});
 
@@ -43,38 +49,82 @@ export default class divideAndConquer extends Plugin {
 
 		this.addCommand({
 			id: "disable-half",
-			name: "Disable half of the enabled plugins",
+			name: "Disable half of enabled plugins",
 			callback: () => this.divideConquer("disable", "half"),
 		});
 
 		this.addCommand({
 			id: "enable-half",
-			name: "Enable half of the disabled plugins",
+			name: "Enable half of disabled plugins",
 			callback: () => this.divideConquer("enable", "half"),
 		});
 
 	}
 
-	divideConquer (mode: string, scope: string) {
+	divideConquer (mode: string, scope?: string) {
 		console.log ("Mode: " + mode + ", Scope: " + scope);
+		const reloadDelay = 2000;
+		let noticeText;
 
-		// get pluginIDs of all installed plugins
-		const comPlugin = Object.keys(this.app.plugins.manifests)
-			.filter (f => f !== "obsidian-divide-and-conquer");
+		const allPlugins = Object.keys(this.app.plugins.manifests)
+			.filter (id => id !== "obsidian-divide-and-conquer");
+		const enabledPlugins = [...this.app.plugins.enabledPlugins]
+			.filter (id => id !== "obsidian-divide-and-conquer");
+		const disabledPlugins = allPlugins
+			.filter (id => !enabledPlugins.includes(id));
 
-
-		if () {
-			comPlugin.forEach (pluginID => this.app.plugins.enablePluginAndSave(pluginID));
-			new Notice ("Enabling " + comPlugin.length.toString() + " plugins");
-		} else {
-			comPlugin.forEach (pluginID => this.app.plugins.disablePluginAndSave(pluginID));
-			new Notice ("Disabling " + comPlugin.length.toString() + " plugins");
+		if (mode === "count") {
+			noticeText =
+				"Total: " + allPlugins.length
+				+ "\nDisabled: " + disabledPlugins.length
+				+ "\nEnabled: " + enabledPlugins.length;
 		}
 
-		if (mode !== "enable") {
+		if (scope === "all") {
+			if (mode === "enable") {
+				allPlugins.forEach (id => this.app.plugins.enablePluginAndSave(id));
+			} else if (mode === "disable") {
+				allPlugins.forEach (id => this.app.plugins.disablePluginAndSave(id));
+			} else if (mode === "toggle") {
+				enabledPlugins.forEach (id => this.app.plugins.disablePluginAndSave(id));
+				disabledPlugins.forEach (id => this.app.plugins.enablePluginAndSave(id));
+			}
+			noticeText = mode.charAt(0).toUpperCase() + mode.slice(1, -1) + "ing all " + allPlugins.length.toString() + " plugins";
+		}
+
+		if (scope === "half") {
+			if (mode === "enable") {
+				const disabled = disabledPlugins.length;
+				const half = Math.ceil(disabled / 2);
+
+				disabledPlugins
+					.slice (0, half)
+					.forEach (id => this.app.plugins.enablePluginAndSave(id));
+
+				noticeText = "Enabling " + half.toString() + " out of " + disabled.toString() + " disabled plugins.";
+
+			} else if (mode === "disable") {
+				const enabled = enabledPlugins.length;
+				const half = Math.ceil(enabled / 2);
+
+				enabledPlugins
+					.slice (0, half)
+					.forEach (id => this.app.plugins.disablePluginAndSave(id));
+
+				noticeText = "Disabling " + half.toString() + " out of " + enabled.toString() + " enabled plugins.";
+			}
+		}
+
+		// Notify & reload
+		const reloadAfterwards = (mode === "toggle" || mode === "disable");
+
+		if (reloadAfterwards) noticeText += "\n\nReloading Obsidian...";
+		new Notice (noticeText);
+
+		if (reloadAfterwards) {
 			setTimeout(() => {
 				this.app.commands.executeCommandById("app:reload");
-			}, 2000); // eslint-disable-line no-magic-numbers
+			}, reloadDelay);
 		}
 	}
 
