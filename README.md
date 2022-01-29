@@ -7,7 +7,7 @@ An [Obsidian](https://obsidian.md/) plugin that provides commands for bulk enabl
 ## Table of Contents
 <!-- MarkdownTOC levels="2" -->
 
-- [How this helps Debugging](#how-this-helps-debugging)
+- [How this helps with Debugging](#how-this-helps-with-debugging)
 - [Commands Added](#commands-added)
 - [Installation](#installation)
 - [Contribute](#contribute)
@@ -15,7 +15,7 @@ An [Obsidian](https://obsidian.md/) plugin that provides commands for bulk enabl
 
 <!-- /MarkdownTOC -->
 
-## How this helps Debugging
+## How this helps with Debugging
 You have a problem with Obsidian and have confirmed that the issue goes away when disabling safe mode. Now, you have to narrow down which plugin misbehaves. The most efficient method for doing so is to to bisect, meaning that you disable half of the plugins, and depending on whether the issue still occurs or not, you can rule out one half of plugins.
 
 Even though that process is the quickest method of finding the culprit-plugin, it is still quite cumbersome for power users have 40, 50 or more plugins. *Divide & Conquer* provides some useful commands for bulk disabling/enabling of plugins, to make the power user's life easier.
