@@ -20,6 +20,7 @@ if [[ ! -f "./.github/workflows/release.yml" ]] ; then
 fi
 
 # Lint
+cd "$(dirname "$0")"
 eslint --fix *.ts
 markdownlint --fix *.md
 
