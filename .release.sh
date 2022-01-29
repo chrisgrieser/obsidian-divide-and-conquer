@@ -1,4 +1,5 @@
 #!/bin/zsh
+export PATH=/usr/local/bin/:/opt/homebrew/bin/:$PATH
 
 # Release Obsidian Plugin
 # https://forum.obsidian.md/t/using-github-actions-to-release-plugins/7877
