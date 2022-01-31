@@ -1,3 +1,9 @@
+- 2022-01-31	release 0.2.1
+- 2022-01-31	switch from app.plugins.enabledPlugins to app.plugins.plugins @kometenstaub
+- 2022-01-29	Merge pull request #1 from claremacrae/patch-1
+- 2022-01-29	Merge branch 'master' into patch-1
+- 2022-01-29	Fix a few tiny typos in the README
+- 2022-01-29	fix typo in description
 - 2022-01-29	release 0.2
 - 2022-01-29	finsihed prototype
 - 2022-01-29	setup type safety
