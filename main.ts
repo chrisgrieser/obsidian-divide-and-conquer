@@ -4,8 +4,8 @@ import { Plugin, Notice } from "obsidian";
 declare module "obsidian" {
 	interface App {
 		plugins: {
-			enabledPlugins?: Set<string>;
-			manifests: () => string[];
+			plugins: string[];
+			manifests: string[];
 			disablePluginAndSave: (id: string) => void;
 			enablePluginAndSave: (id: string) => void;
 		};
@@ -68,7 +68,7 @@ export default class divideAndConquer extends Plugin {
 
 		const allPlugins = Object.keys(this.app.plugins.manifests)
 			.filter (id => id !== "obsidian-divide-and-conquer");
-		const enabledPlugins = [...this.app.plugins.enabledPlugins]
+		const enabledPlugins = Object.keys(this.app.plugins.plugins)
 			.filter (id => id !== "obsidian-divide-and-conquer");
 		const disabledPlugins = allPlugins
 			.filter (id => !enabledPlugins.includes(id));
