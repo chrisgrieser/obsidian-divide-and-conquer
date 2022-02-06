@@ -6,8 +6,8 @@ declare module "obsidian" {
 		plugins: {
 			plugins: string[];
 			manifests: string[];
-			disablePluginAndSave: (id: string) => void;
-			enablePluginAndSave: (id: string) => void;
+			disablePluginAndSave: (id: string) => Promise<boolean>;
+			enablePluginAndSave: (id: string) => Promise<boolean>;
 		};
 		commands: {
 			executeCommandById: (commandID: string) => void;
@@ -61,17 +61,21 @@ export default class divideAndConquer extends Plugin {
 
 	}
 
-	divideConquer (mode: string, scope?: string) {
+	async divideConquer (mode: string, scope?: string) {
 		console.log ("Mode: " + mode + ", Scope: " + scope);
 		const reloadDelay = 2000;
+		const pluginsToIgnore = [
+			"hot-reload",
+			"obsidian-divide-and-conquer"
+		];
+
+
+		const tplugins = this.app.plugins;
 		let noticeText;
 
-		const allPlugins = Object.keys(this.app.plugins.manifests)
-			.filter (id => id !== "obsidian-divide-and-conquer");
-		const enabledPlugins = Object.keys(this.app.plugins.plugins)
-			.filter (id => id !== "obsidian-divide-and-conquer");
-		const disabledPlugins = allPlugins
-			.filter (id => !enabledPlugins.includes(id));
+		const allPlugins = Object.keys(tplugins.manifests).filter (id => !pluginsToIgnore.includes(id));
+		const enabledPlugins = Object.keys(tplugins.plugins).filter (id => !pluginsToIgnore.includes(id));
+		const disabledPlugins = allPlugins.filter (id => !enabledPlugins.includes(id));
 
 		if (mode === "count") {
 			noticeText =
@@ -82,12 +86,12 @@ export default class divideAndConquer extends Plugin {
 
 		if (scope === "all") {
 			if (mode === "enable") {
-				allPlugins.forEach (id => this.app.plugins.enablePluginAndSave(id));
+				for (const id of disabledPlugins) await tplugins.enablePluginAndSave(id);
 			} else if (mode === "disable") {
-				allPlugins.forEach (id => this.app.plugins.disablePluginAndSave(id));
+				for (const id of enabledPlugins) await tplugins.disablePluginAndSave(id);
 			} else if (mode === "toggle") {
-				enabledPlugins.forEach (id => this.app.plugins.disablePluginAndSave(id));
-				disabledPlugins.forEach (id => this.app.plugins.enablePluginAndSave(id));
+				for (const id of enabledPlugins) await tplugins.disablePluginAndSave(id);
+				for (const id of disabledPlugins) await tplugins.enablePluginAndSave(id);
 			}
 			noticeText = mode.charAt(0).toUpperCase() + mode.slice(1, -1) + "ing all " + allPlugins.length.toString() + " plugins";
 		}
@@ -96,28 +100,23 @@ export default class divideAndConquer extends Plugin {
 			if (mode === "enable") {
 				const disabled = disabledPlugins.length;
 				const half = Math.ceil(disabled / 2);
+				const halfOfDisabled = disabledPlugins.slice (0, half);
 
-				disabledPlugins
-					.slice (0, half)
-					.forEach (id => this.app.plugins.enablePluginAndSave(id));
-
+				for (const id of halfOfDisabled) await tplugins.enablePluginAndSave(id);
 				noticeText = "Enabling " + half.toString() + " out of " + disabled.toString() + " disabled plugins.";
 
 			} else if (mode === "disable") {
 				const enabled = enabledPlugins.length;
 				const half = Math.ceil(enabled / 2);
+				const halfOfEnabled = enabledPlugins.slice (0, half);
 
-				enabledPlugins
-					.slice (0, half)
-					.forEach (id => this.app.plugins.disablePluginAndSave(id));
-
+				for (const id of halfOfEnabled) await tplugins.disablePluginAndSave(id);
 				noticeText = "Disabling " + half.toString() + " out of " + enabled.toString() + " enabled plugins.";
 			}
 		}
 
 		// Notify & reload
 		const reloadAfterwards = (mode === "toggle" || mode === "disable");
-
 		if (reloadAfterwards) noticeText += "\n\nReloading Obsidian...";
 		new Notice (noticeText);
 

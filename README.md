@@ -28,7 +28,7 @@ Even though that process is the quickest method of finding the culprit-plugin, i
 - Toggle all plugins (Disable enabled plugins & enable disabled ones)
 - Count enabled and disabled plugins
 
-(Note that to be able to fulfill its duty, this plugin will not disable itself.)
+(Note that to be able to fulfill its duty, this plugin will never disable itself. The Hot Reload Plugin will also never be disabled, to avoid interference for developers.)
 
 ## Installation
 Right now, the plugin is still in beta. It can be installed with the [BRAT Plugin](https://github.com/TfTHacker/obsidian42-brat).
