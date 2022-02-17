@@ -1,4 +1,5 @@
-import { Plugin, Notice } from "obsidian";
+import { DACSettingsTab, DEFAULT_SETTINGS } from "settings";
+import { Notice, Plugin, PluginManifest } from "obsidian";
 
 // add type safety for the undocumented methods
 declare module "obsidian" {
@@ -6,6 +7,7 @@ declare module "obsidian" {
 		plugins: {
 			plugins: string[];
 			manifests: string[];
+			enabledPlugins: string[];
 			disablePluginAndSave: (id: string) => Promise<boolean>;
 			enablePluginAndSave: (id: string) => Promise<boolean>;
 		};
@@ -16,12 +18,17 @@ declare module "obsidian" {
 }
 
 
-export default class divideAndConquer extends Plugin {
 
+export default class divideAndConquer extends Plugin {
+	settings : typeof DEFAULT_SETTINGS;
+		
 	async onunload() { console.log("Divide & Conquer Plugin unloaded.") }
 
 	async onload() {
 		console.log("Divide & Conquer Plugin loaded.");
+
+		await this.loadData();
+		this.addSettingTab(new DACSettingsTab(this.app, this));
 
 		this.addCommand({
 			id: "count-enabled-and-disabled",
@@ -64,22 +71,17 @@ export default class divideAndConquer extends Plugin {
 	async divideConquer (mode: string, scope?: string) {
 		console.log ("Mode: " + mode + ", Scope: " + scope);
 		const reloadDelay = 2000;
-		const pluginsToIgnore = [
-			"hot-reload",
-			"obsidian-divide-and-conquer"
-		];
-
-
+		
 		const tplugins = this.app.plugins;
 		let noticeText;
 
-		const allPlugins = Object.keys(tplugins.manifests).filter (id => !pluginsToIgnore.includes(id));
-		const enabledPlugins = Object.keys(tplugins.plugins).filter (id => !pluginsToIgnore.includes(id));
-		const disabledPlugins = allPlugins.filter (id => !enabledPlugins.includes(id));
+		const includedPlugins = this.getIncludedPlugins().map(p => p.id);
+		const enabledPlugins = Object.keys(this.app.plugins.plugins).filter(p => includedPlugins.includes(p));
+		const disabledPlugins = includedPlugins.filter (id => !enabledPlugins.includes(id));
 
 		if (mode === "count") {
 			noticeText =
-				"Total: " + allPlugins.length
+				"Total: " + includedPlugins.length
 				+ "\nDisabled: " + disabledPlugins.length
 				+ "\nEnabled: " + enabledPlugins.length;
 		}
@@ -93,7 +95,7 @@ export default class divideAndConquer extends Plugin {
 				for (const id of enabledPlugins) await tplugins.disablePluginAndSave(id);
 				for (const id of disabledPlugins) await tplugins.enablePluginAndSave(id);
 			}
-			noticeText = mode.charAt(0).toUpperCase() + mode.slice(1, -1) + "ing all " + allPlugins.length.toString() + " plugins";
+			noticeText = mode.charAt(0).toUpperCase() + mode.slice(1, -1) + "ing all " + includedPlugins.length.toString() + " plugins";
 		}
 
 		if (scope === "half") {
@@ -127,5 +129,18 @@ export default class divideAndConquer extends Plugin {
 		}
 	}
 
+	public async loadData() {this.settings = Object.assign({}, DEFAULT_SETTINGS, await super.loadData());}
+	public async saveData() { await super.saveData(this.settings); }
+	
+	public getIncludedPlugins(){
+		return (Object.values(this.app.plugins.manifests) as unknown as PluginManifest[]).filter(
+			p => !this.settings.omittedPlugins.some(
+				ignore => p.id.match(new RegExp(ignore, "i")) 
+				|| (this.settings.filterUsingDisplayName && p.name.match(new RegExp(ignore, "i")))
+				|| (this.settings.filterUsingAuthor && p.author.match(new RegExp(ignore, "i")))
+				|| (this.settings.filterUsingDescription && p.description.match(new RegExp(ignore, "i")))
+				)
+		);
+	}
 
 }
