@@ -1,3 +1,8 @@
+- 2022-02-18	release 0.4.0
+- 2022-02-18	added markdown-link-check
+- 2022-02-18	Merge pull request #3 from valentine195/master
+- 2022-02-18	adds Divide and Conquer Snippet commands
+- 2022-02-18	adds divideAndConquerSnippets method
 - 2022-02-06	release 0.3.0
 - 2022-02-06	change to awaits/asyncs for plugin disabling/enabling. + ignore hot reload plugin
 - 2022-01-31	release 0.2.1
