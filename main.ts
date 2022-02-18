@@ -12,6 +12,12 @@ declare module "obsidian" {
 		commands: {
 			executeCommandById: (commandID: string) => void;
 		}
+
+        customCss: {
+            enabledSnippets: Set<string>;
+            snippets: string[];
+            setCssEnabledStatus(snippet: string, enable: boolean): void;
+        }
 	}
 }
 
@@ -125,6 +131,80 @@ export default class divideAndConquer extends Plugin {
 				this.app.commands.executeCommandById("app:reload");
 			}, reloadDelay);
 		}
+	}
+	async divideConquerSnippets (mode: string, scope?: string) {
+		console.log ("Mode: " + mode + ", Scope: " + scope);
+		const reloadDelay = 2000;
+
+		let noticeText;
+
+        /** Enabled can include snippets that were removed without disabling. */
+        /** This array is the list of currently loaded snippets. */
+        const allSnippets = this.app.customCss.snippets;
+        const enabledSnippets = allSnippets.filter((snippet) =>
+			this.app.customCss.enabledSnippets.has(snippet)
+		);
+        const disabledSnippets = allSnippets.filter(
+			(snippet) => !this.app.customCss.enabledSnippets.has(snippet)
+		);
+
+		if (mode === "count") {
+			noticeText =
+				"Total: " +
+				allSnippets.length +
+				"\nDisabled: " +
+				disabledSnippets.length +
+				"\nEnabled: " +
+				enabledSnippets.length;
+		}
+
+		if (scope === "all") {
+			if (mode === "enable") {
+				for (const snippet of disabledSnippets)
+					await this.app.customCss.setCssEnabledStatus(snippet, true);
+			} else if (mode === "disable") {
+				for (const snippet of enabledSnippets) 
+					await this.app.customCss.setCssEnabledStatus(snippet, false);
+			} else if (mode === "toggle") {
+				for (const snippet of enabledSnippets)
+					await this.app.customCss.setCssEnabledStatus(snippet, false);
+				for (const snippet of disabledSnippets)
+					await this.app.customCss.setCssEnabledStatus(snippet, true);
+			}
+			noticeText =
+				mode.charAt(0).toUpperCase() +
+				mode.slice(1, -1) +
+				"ing all " +
+				allSnippets.length.toString() +
+				" snippets";
+		}
+
+		if (scope === "half") {
+			if (mode === "enable") {
+				const disabled = disabledSnippets.length;
+				const half = Math.ceil(disabled / 2);
+				const halfOfDisabled = disabledSnippets.slice (0, half);
+
+				for (const snippet of halfOfDisabled)
+					await this.app.customCss.setCssEnabledStatus(snippet, true);
+				noticeText = "Enabling " + half.toString() + " out of " + disabled.toString() + " disabled snippets.";
+
+			} else if (mode === "disable") {
+				const enabled = enabledSnippets.length;
+				const half = Math.ceil(enabled / 2);
+				const halfOfEnabled = enabledSnippets.slice (0, half);
+
+				for (const snippet of halfOfEnabled) 
+					await this.app.customCss.setCssEnabledStatus(snippet, false);
+				noticeText = "Disabling " + half.toString() + " out of " + enabled.toString() + " enabled snippets.";
+			}
+		}
+
+		// Notify
+		new Notice (noticeText);
+
+        //no need to reload for snippets
+
 	}
 
 
