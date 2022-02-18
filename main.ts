@@ -65,6 +65,43 @@ export default class divideAndConquer extends Plugin {
 			callback: () => this.divideConquer("enable", "half"),
 		});
 
+        /** Snippet Commands */
+		this.addCommand({
+			id: "count-enabled-and-disabled-snippets",
+			name: "Count enabled and disabled snippets",
+			callback: () => this.divideConquerSnippets("count"),
+		});
+
+		this.addCommand({
+			id: "disable-all-snippets",
+			name: "Disable all snippets",
+			callback: () => this.divideConquerSnippets("disable", "all"),
+		});
+
+		this.addCommand({
+			id: "enable-all-snippets",
+			name: "Enable all snippets",
+			callback: () => this.divideConquerSnippets("enable", "all"),
+		});
+
+		this.addCommand({
+			id: "toggle-all-snippets",
+			name: "Toggle all plugins (Disable enabled snippets & enable disabled ones)",
+			callback: () => this.divideConquerSnippets("toggle", "all"),
+		});
+
+		this.addCommand({
+			id: "disable-half-snippets",
+			name: "Disable half of enabled snippets",
+			callback: () => this.divideConquerSnippets("disable", "half"),
+		});
+
+		this.addCommand({
+			id: "enable-half-snippets",
+			name: "Enable half of disabled snippets",
+			callback: () => this.divideConquerSnippets("enable", "half"),
+		});
+
 	}
 
 	async divideConquer (mode: string, scope?: string) {
