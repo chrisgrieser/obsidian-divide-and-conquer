@@ -50,8 +50,8 @@ In my day job, I am a sociologist studying the social mechanisms underlying the 
 - [GitHub](https://github.com/chrisgrieser/)
 - [Twitter](https://twitter.com/pseudo_meta)
 - [ResearchGate](https://www.researchgate.net/profile/Christopher-Grieser)
-- [LinkedIn](https://www.linkedin.com/in/christopher-grieser-ba693b17a/)
+- [LinkedIn](https://www.linkedin.com/in/christopher-grieser-ba693b17a/) <!-- markdown-link-check-disable-line -->
 
 ### Donate
 - [PayPal](https://www.paypal.com/paypalme/ChrisGrieser)
-- [Ko-Fi](https://ko-fi.com/pseudometa)
+- [Ko-Fi](https://ko-fi.com/pseudometa) <!-- markdown-link-check-disable-line -->
