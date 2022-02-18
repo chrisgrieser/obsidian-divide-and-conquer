@@ -65,7 +65,7 @@ export default class divideAndConquer extends Plugin {
 			callback: () => this.divideConquer("enable", "half"),
 		});
 
-        /** Snippet Commands */
+		/** Snippet Commands */
 		this.addCommand({
 			id: "count-enabled-and-disabled-snippets",
 			name: "Count enabled and disabled snippets",
@@ -175,13 +175,13 @@ export default class divideAndConquer extends Plugin {
 
 		let noticeText;
 
-        /** Enabled can include snippets that were removed without disabling. */
-        /** This array is the list of currently loaded snippets. */
-        const allSnippets = this.app.customCss.snippets;
-        const enabledSnippets = allSnippets.filter((snippet) =>
+		/** Enabled can include snippets that were removed without disabling. */
+		/** This array is the list of currently loaded snippets. */
+		const allSnippets = this.app.customCss.snippets;
+		const enabledSnippets = allSnippets.filter((snippet) =>
 			this.app.customCss.enabledSnippets.has(snippet)
 		);
-        const disabledSnippets = allSnippets.filter(
+		const disabledSnippets = allSnippets.filter(
 			(snippet) => !this.app.customCss.enabledSnippets.has(snippet)
 		);
 
@@ -240,7 +240,7 @@ export default class divideAndConquer extends Plugin {
 		// Notify
 		new Notice (noticeText);
 
-        //no need to reload for snippets
+		// no need to reload for snippets
 
 	}
 
