@@ -13,7 +13,14 @@ declare module "obsidian" {
 		};
 		commands: {
 			executeCommandById: (commandID: string) => void;
+
 		};
+    customCss: {
+          enabledSnippets: Set<string>;
+          snippets: string[];
+          setCssEnabledStatus(snippet: string, enable: boolean): void;
+     };
+
 	}
 }
 
@@ -83,6 +90,42 @@ export default class divideAndConquer extends Plugin {
 			id: "restore",
 			name: "Restore - return to the original state",
 			callback: composed(this.restore)
+		});
+    
+    this.addCommand({
+			id: "count-enabled-and-disabled-snippets",
+			name: "Count enabled and disabled snippets",
+			callback: () => this.divideConquerSnippets("count"),
+		});
+
+		this.addCommand({
+			id: "disable-all-snippets",
+			name: "Disable all snippets",
+			callback: () => this.divideConquerSnippets("disable", "all"),
+		});
+
+		this.addCommand({
+			id: "enable-all-snippets",
+			name: "Enable all snippets",
+			callback: () => this.divideConquerSnippets("enable", "all"),
+		});
+
+		this.addCommand({
+			id: "toggle-all-snippets",
+			name: "Toggle all plugins (Disable enabled snippets & enable disabled ones)",
+			callback: () => this.divideConquerSnippets("toggle", "all"),
+		});
+
+		this.addCommand({
+			id: "disable-half-snippets",
+			name: "Disable half of enabled snippets",
+			callback: () => this.divideConquerSnippets("disable", "half"),
+		});
+
+		this.addCommand({
+			id: "enable-half-snippets",
+			name: "Enable half of disabled snippets",
+			callback: () => this.divideConquerSnippets("enable", "half"),
 		});
 	}
 
@@ -186,6 +229,80 @@ export default class divideAndConquer extends Plugin {
 		if (plugins instanceof Set) plugins = [...plugins];
 		for (const id of plugins) await this.app.plugins.disablePluginAndSave(id);
 		return plugins;
+	}
+	async divideConquerSnippets (mode: string, scope?: string) {
+		console.log ("Mode: " + mode + ", Scope: " + scope);
+		const reloadDelay = 2000;
+
+		let noticeText;
+
+		/** Enabled can include snippets that were removed without disabling. */
+		/** This array is the list of currently loaded snippets. */
+		const allSnippets = this.app.customCss.snippets;
+		const enabledSnippets = allSnippets.filter((snippet) =>
+			this.app.customCss.enabledSnippets.has(snippet)
+		);
+		const disabledSnippets = allSnippets.filter(
+			(snippet) => !this.app.customCss.enabledSnippets.has(snippet)
+		);
+
+		if (mode === "count") {
+			noticeText =
+				"Total: " +
+				allSnippets.length +
+				"\nDisabled: " +
+				disabledSnippets.length +
+				"\nEnabled: " +
+				enabledSnippets.length;
+		}
+
+		if (scope === "all") {
+			if (mode === "enable") {
+				for (const snippet of disabledSnippets)
+					await this.app.customCss.setCssEnabledStatus(snippet, true);
+			} else if (mode === "disable") {
+				for (const snippet of enabledSnippets) 
+					await this.app.customCss.setCssEnabledStatus(snippet, false);
+			} else if (mode === "toggle") {
+				for (const snippet of enabledSnippets)
+					await this.app.customCss.setCssEnabledStatus(snippet, false);
+				for (const snippet of disabledSnippets)
+					await this.app.customCss.setCssEnabledStatus(snippet, true);
+			}
+			noticeText =
+				mode.charAt(0).toUpperCase() +
+				mode.slice(1, -1) +
+				"ing all " +
+				allSnippets.length.toString() +
+				" snippets";
+		}
+
+		if (scope === "half") {
+			if (mode === "enable") {
+				const disabled = disabledSnippets.length;
+				const half = Math.ceil(disabled / 2);
+				const halfOfDisabled = disabledSnippets.slice (0, half);
+
+				for (const snippet of halfOfDisabled)
+					await this.app.customCss.setCssEnabledStatus(snippet, true);
+				noticeText = "Enabling " + half.toString() + " out of " + disabled.toString() + " disabled snippets.";
+
+			} else if (mode === "disable") {
+				const enabled = enabledSnippets.length;
+				const half = Math.ceil(enabled / 2);
+				const halfOfEnabled = enabledSnippets.slice (0, half);
+
+				for (const snippet of halfOfEnabled) 
+					await this.app.customCss.setCssEnabledStatus(snippet, false);
+				noticeText = "Disabling " + half.toString() + " out of " + enabled.toString() + " enabled snippets.";
+			}
+		}
+
+		// Notify
+		new Notice (noticeText);
+
+		// no need to reload for snippets
+
 	}
 
 
