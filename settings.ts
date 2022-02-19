@@ -3,7 +3,7 @@ import { App, PluginManifest, PluginSettingTab, Setting, TextAreaComponent } fro
 import divideAndConquer from "main";
 
 export interface DACSettings {
-	filterRegexes: string[];
+    filterRegexes: string[];
     filterUsingDisplayName: boolean,
     filterUsingAuthor: boolean,
     filterUsingDescription: boolean,
@@ -12,7 +12,7 @@ export interface DACSettings {
 }
 
 export const DEFAULT_SETTINGS: DACSettings = {
-	filterRegexes: [
+    filterRegexes: [
         "hot-reload",
         "obsidian-divide-and-conquer"
     ],
@@ -36,54 +36,54 @@ export class DACSettingsTab extends PluginSettingTab {
         const { containerEl } = this;
         containerEl.empty();
         containerEl.createEl('h2', { text: 'Divide and Conquer' });
-        
+
         new Setting(containerEl)
-        .setName('Reload Obsidian after plugin changes')
-        .addToggle((toggle) =>
-            toggle
-                .setValue(this.plugin.settings.reloadAfterPluginChanges)
-                .onChange(async (value) => {
-                    this.plugin.settings.reloadAfterPluginChanges = value;
-                    await this.plugin.saveData(false);
-                })
-        );
+            .setName('Reload Obsidian after plugin changes')
+            .addToggle((toggle) =>
+                toggle
+                    .setValue(this.plugin.settings.reloadAfterPluginChanges)
+                    .onChange(async (value) => {
+                        this.plugin.settings.reloadAfterPluginChanges = value;
+                        await this.plugin.saveData(false);
+                    })
+            );
 
         containerEl.createEl('p', { text: 'Changing any of the following settings will restore plugins to the original state.' });
-        
+
 
         new Setting(containerEl)
-        .setName('Use Filters on Plugin Display Names')
-        .setDesc('If this is off, DAC will only match plugins by their ID')
-        .addToggle((toggle) =>
-            toggle
-                .setValue(this.plugin.settings.filterUsingDisplayName)
-                .onChange(async (value) => {
-                    this.plugin.settings.filterUsingDisplayName = value;
-                    await this.plugin.saveData();
-                })
-        );
+            .setName('Use Filters on Plugin Display Names')
+            .setDesc('If this is off, DAC will only match plugins by their ID')
+            .addToggle((toggle) =>
+                toggle
+                    .setValue(this.plugin.settings.filterUsingDisplayName)
+                    .onChange(async (value) => {
+                        this.plugin.settings.filterUsingDisplayName = value;
+                        await this.plugin.saveData();
+                    })
+            );
 
         new Setting(containerEl)
-        .setName('Use Filters on Plugin Authors')
-        .addToggle((toggle) =>
-            toggle
-                .setValue(this.plugin.settings.filterUsingAuthor)
-                .onChange(async (value) => {
-                    this.plugin.settings.filterUsingAuthor = value;
-                    await this.plugin.saveData();
-                })
-        );
+            .setName('Use Filters on Plugin Authors')
+            .addToggle((toggle) =>
+                toggle
+                    .setValue(this.plugin.settings.filterUsingAuthor)
+                    .onChange(async (value) => {
+                        this.plugin.settings.filterUsingAuthor = value;
+                        await this.plugin.saveData();
+                    })
+            );
 
         new Setting(containerEl)
-        .setName('Use Filters on Plugin Descriptions')
-        .addToggle((toggle) =>
-            toggle
-                .setValue(this.plugin.settings.filterUsingDescription)
-                .onChange(async (value) => {
-                    this.plugin.settings.filterUsingDescription = value;
-                    await this.plugin.saveData();
-                })
-        );
+            .setName('Use Filters on Plugin Descriptions')
+            .addToggle((toggle) =>
+                toggle
+                    .setValue(this.plugin.settings.filterUsingDescription)
+                    .onChange(async (value) => {
+                        this.plugin.settings.filterUsingDescription = value;
+                        await this.plugin.saveData();
+                    })
+            );
 
 
 

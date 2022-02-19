@@ -13,21 +13,21 @@ declare module "obsidian" {
 		};
 		commands: {
 			executeCommandById: (commandID: string) => void;
-		}
+		};
 	}
 }
 
 
 
 export default class divideAndConquer extends Plugin {
-	settings : typeof DEFAULT_SETTINGS;
+	settings: typeof DEFAULT_SETTINGS;
 	disabledState: Set<string>[];
 	manifests = this.app.plugins.manifests;
 	steps = 1;
-		
-	async onunload() { 
+
+	async onunload() {
 		this.saveData();
-		console.log("Divide & Conquer Plugin unloaded.")
+		console.log("Divide & Conquer Plugin unloaded.");
 	}
 
 	async onload() {
@@ -39,16 +39,16 @@ export default class divideAndConquer extends Plugin {
 				setTimeout(() => this.app.commands.executeCommandById("app:reload"), 2000);
 		};
 
-		let notice = () => {	
-			if (this.steps==1) new Notice("DAC: Now in the original state.",5000);
-			if (this.steps==0) new Notice("DAC: All Plugins Enabled",5000);
-			
+		let notice = () => {
+			if (this.steps == 1) new Notice("DAC: Now in the original state.", 5000);
+			if (this.steps == 0) new Notice("DAC: All Plugins Enabled", 5000);
+
 		};
 
 		// compose takes any number of functions, binds them to "this", and returns a function that calls them in order
-		let compose = (...funcs: Function[]) => (...args: any[]) => 
+		let compose = (...funcs: Function[]) => (...args: any[]) =>
 			funcs.reduce((promise, func) => promise.then(func.bind(this)), Promise.resolve());
-		let composed = (func : () => any) => async () =>  compose(func, maybeReload, notice).bind(this)();
+		let composed = (func: () => any) => async () => compose(func, maybeReload, notice).bind(this)();
 
 
 
@@ -88,8 +88,8 @@ export default class divideAndConquer extends Plugin {
 
 	public async loadData() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await super.loadData());
-		this.disabledState = this.settings.disabledState ? 
-			JSON.parse(this.settings.disabledState).map((set: string[]) => new Set(set)) 
+		this.disabledState = this.settings.disabledState ?
+			JSON.parse(this.settings.disabledState).map((set: string[]) => new Set(set))
 			: undefined;
 	}
 
@@ -102,10 +102,10 @@ export default class divideAndConquer extends Plugin {
 	}
 
 	async bisect() {
-		if((++this.steps)==1) { this.restore(); return; }
+		if ((++this.steps) == 1) { this.restore(); return; }
 		const { enabled } = this.getCurrentEDPs();
 		const half = await this.disablePlugins(enabled.slice(0, Math.floor(enabled.length / 2)));
-		if(half.length > 0) this.disabledState.push(new Set(half));
+		if (half.length > 0) this.disabledState.push(new Set(half));
 		return half;
 	}
 
@@ -114,17 +114,17 @@ export default class divideAndConquer extends Plugin {
 		const { disabled } = this.getCurrentEDPs();
 		await this.enablePlugins(disabled);
 		// this allows unbisect to turn on all plugins without losing the original state
-		if(this.disabledState.length>1) return this.disabledState.pop();
+		if (this.disabledState.length > 1) return this.disabledState.pop();
 		return new Set();
 	}
 
 	public async reBisect() {
-		if(this.steps < 2) { new Notice("Cannot re-bisect the original state."); return; }
+		if (this.steps < 2) { new Notice("Cannot re-bisect the original state."); return; }
 		const reenabled = await this.unBisect();
 		const { enabled } = this.getCurrentEDPs();
 		const toDisable = enabled.filter(id => !reenabled.has(id));
 		await this.disablePlugins(toDisable);
-		if(toDisable.length > 0) this.disabledState.push(new Set(toDisable));
+		if (toDisable.length > 0) this.disabledState.push(new Set(toDisable));
 	}
 
 
@@ -133,21 +133,21 @@ export default class divideAndConquer extends Plugin {
 		this.steps = 1;
 		// we don't need to set the original state here because it is lazily created
 	}
-	
+
 	public async restore() {
-		if(this.disabledState == null) return;
+		if (this.disabledState == null) return;
 		for (let i = this.disabledState.length - 1; i >= 1; i--)
 			this.enablePlugins(this.disabledState[i]);
 		await this.disablePlugins(this.disabledState[0]);
 		this.reset();
 	}
-	
+
 	// EDPs = Enabled/Disabled Plugins
 	public getCurrentEDPs() {
-		const {enabled, disabled} = this.getVaultEDPsFrom(this.getIncludedPlugins() as Set<string>);
+		const { enabled, disabled } = this.getVaultEDPsFrom(this.getIncludedPlugins() as Set<string>);
 		this.disabledState ??= [new Set(disabled)];
 		const currentDisabled = this.disabledState.last();
-		return { enabled, disabled:currentDisabled };
+		return { enabled, disabled: currentDisabled };
 	}
 
 	// EDPs = Enabled/Disabled Plugins
@@ -155,7 +155,7 @@ export default class divideAndConquer extends Plugin {
 		from ??= new Set(Object.keys(this.manifests));
 		// sort by display name rather than id
 		let included = Object.entries<PluginManifest>(this.manifests).filter(([key]) => from.has(key))
-			.sort((a,b) => b[1].name.localeCompare(a[1].name))
+			.sort((a, b) => b[1].name.localeCompare(a[1].name))
 			.map(([key, manifest]) => key);
 
 		return {
@@ -167,10 +167,10 @@ export default class divideAndConquer extends Plugin {
 	public getIncludedPlugins(getPluginIds: boolean = true) {
 		const plugins = (Object.values(this.manifests) as unknown as PluginManifest[]).filter(
 			p => !this.settings.filterRegexes.some(
-				filter => p.id.match(new RegExp(filter, "i")) 
-				|| (this.settings.filterUsingDisplayName && p.name.match(new RegExp(filter, "i")))
-				|| (this.settings.filterUsingAuthor && p.author.match(new RegExp(filter, "i")))
-				|| (this.settings.filterUsingDescription && p.description.match(new RegExp(filter, "i")))
+				filter => p.id.match(new RegExp(filter, "i"))
+					|| (this.settings.filterUsingDisplayName && p.name.match(new RegExp(filter, "i")))
+					|| (this.settings.filterUsingAuthor && p.author.match(new RegExp(filter, "i")))
+					|| (this.settings.filterUsingDescription && p.description.match(new RegExp(filter, "i")))
 			));
 		return getPluginIds ? new Set(plugins.map(p => p.id)) : new Set(plugins);
 	}
