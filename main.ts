@@ -1,72 +1,98 @@
-import { Plugin, Notice } from "obsidian";
+import { DACSettingsTab, DEFAULT_SETTINGS } from "settings";
+import { Notice, Plugin, PluginManifest } from "obsidian";
 
 // add type safety for the undocumented methods
 declare module "obsidian" {
 	interface App {
 		plugins: {
 			plugins: string[];
-			manifests: string[];
+			manifests: PluginManifest[];
+			enabledPlugins: Set<string>;
 			disablePluginAndSave: (id: string) => Promise<boolean>;
 			enablePluginAndSave: (id: string) => Promise<boolean>;
 		};
 		commands: {
 			executeCommandById: (commandID: string) => void;
-		}
 
-        customCss: {
-            enabledSnippets: Set<string>;
-            snippets: string[];
-            setCssEnabledStatus(snippet: string, enable: boolean): void;
-        }
+		};
+    customCss: {
+          enabledSnippets: Set<string>;
+          snippets: string[];
+          setCssEnabledStatus(snippet: string, enable: boolean): void;
+     };
+
 	}
 }
 
 
-export default class divideAndConquer extends Plugin {
 
-	async onunload() { console.log("Divide & Conquer Plugin unloaded.") }
+export default class divideAndConquer extends Plugin {
+	settings: typeof DEFAULT_SETTINGS;
+	disabledState: Set<string>[];
+	manifests = this.app.plugins.manifests;
+	steps = 1;
+
+	async onunload() {
+		this.saveData();
+		console.log("Divide & Conquer Plugin unloaded.");
+	}
 
 	async onload() {
+		this.loadData();
 		console.log("Divide & Conquer Plugin loaded.");
 
+		let maybeReload = () => {
+			if (this.settings.reloadAfterPluginChanges) // TODO: timeout isn't the best way to do this
+				setTimeout(() => this.app.commands.executeCommandById("app:reload"), 2000);
+		};
+
+		let notice = () => {
+			if (this.steps == 1) new Notice("DAC: Now in the original state.", 5000);
+			if (this.steps == 0) new Notice("DAC: All Plugins Enabled", 5000);
+
+		};
+
+		// compose takes any number of functions, binds them to "this", and returns a function that calls them in order
+		let compose = (...funcs: Function[]) => (...args: any[]) =>
+			funcs.reduce((promise, func) => promise.then(func.bind(this)), Promise.resolve());
+		let composed = (func: () => any) => async () => compose(func, maybeReload, notice).bind(this)();
+
+
+
+		await this.loadData();
+		this.addSettingTab(new DACSettingsTab(this.app, this));
+
 		this.addCommand({
-			id: "count-enabled-and-disabled",
-			name: "Count enabled and disabled plugins",
-			callback: () => this.divideConquer("count"),
+			id: "bisect",
+			name: "Bisect - Disable half of the active plugins, or return to the original state if all plugins are active",
+			callback: composed(this.bisect)
 		});
 
 		this.addCommand({
-			id: "disable-all",
-			name: "Disable all plugins",
-			callback: () => this.divideConquer("disable", "all"),
+			id: "un-bisect",
+			name: "Un-Bisect - Undo the last bisection, or enable all plugins if in the original state",
+			callback: composed(this.unBisect)
 		});
 
 		this.addCommand({
-			id: "enable-all",
-			name: "Enable all plugins",
-			callback: () => this.divideConquer("enable", "all"),
+			id: "re-bisect",
+			name: "Re-Bisect - Undo the last bisection, then disable the other half",
+			callback: composed(this.reBisect)
 		});
 
 		this.addCommand({
-			id: "toggle-all",
-			name: "Toggle all plugins (Disable enabled plugins & enable disabled ones)",
-			callback: () => this.divideConquer("toggle", "all"),
+			id: "reset",
+			name: "Reset - forget the original state and set the current state as the new original state",
+			callback: composed(this.reset)
 		});
 
 		this.addCommand({
-			id: "disable-half",
-			name: "Disable half of enabled plugins",
-			callback: () => this.divideConquer("disable", "half"),
+			id: "restore",
+			name: "Restore - return to the original state",
+			callback: composed(this.restore)
 		});
-
-		this.addCommand({
-			id: "enable-half",
-			name: "Enable half of disabled plugins",
-			callback: () => this.divideConquer("enable", "half"),
-		});
-
-		/** Snippet Commands */
-		this.addCommand({
+    
+    this.addCommand({
 			id: "count-enabled-and-disabled-snippets",
 			name: "Count enabled and disabled snippets",
 			callback: () => this.divideConquerSnippets("count"),
@@ -101,73 +127,108 @@ export default class divideAndConquer extends Plugin {
 			name: "Enable half of disabled snippets",
 			callback: () => this.divideConquerSnippets("enable", "half"),
 		});
-
 	}
 
-	async divideConquer (mode: string, scope?: string) {
-		console.log ("Mode: " + mode + ", Scope: " + scope);
-		const reloadDelay = 2000;
-		const pluginsToIgnore = [
-			"hot-reload",
-			"obsidian-divide-and-conquer"
-		];
+	public async loadData() {
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await super.loadData());
+		this.disabledState = this.settings.disabledState ?
+			JSON.parse(this.settings.disabledState).map((set: string[]) => new Set(set))
+			: undefined;
+	}
+
+	public async saveData(restore: boolean = true) {
+		if (this.disabledState?.length > 0)
+			this.settings.disabledState = JSON.stringify(this.disabledState.map(set => [...set]));
+		else this.settings.disabledState = undefined;
+		if (restore) await this.restore();
+		await super.saveData(this.settings);
+	}
+
+	async bisect() {
+		if ((++this.steps) == 1) { this.restore(); return; }
+		const { enabled } = this.getCurrentEDPs();
+		const half = await this.disablePlugins(enabled.slice(0, Math.floor(enabled.length / 2)));
+		if (half.length > 0) this.disabledState.push(new Set(half));
+		return half;
+	}
+
+	public async unBisect() {
+		this.steps = this.steps > 0 ? this.steps - 1 : 0;
+		const { disabled } = this.getCurrentEDPs();
+		await this.enablePlugins(disabled);
+		// this allows unbisect to turn on all plugins without losing the original state
+		if (this.disabledState.length > 1) return this.disabledState.pop();
+		return new Set();
+	}
+
+	public async reBisect() {
+		if (this.steps < 2) { new Notice("Cannot re-bisect the original state."); return; }
+		const reenabled = await this.unBisect();
+		const { enabled } = this.getCurrentEDPs();
+		const toDisable = enabled.filter(id => !reenabled.has(id));
+		await this.disablePlugins(toDisable);
+		if (toDisable.length > 0) this.disabledState.push(new Set(toDisable));
+	}
 
 
-		const tplugins = this.app.plugins;
-		let noticeText;
+	public reset() {
+		this.disabledState = this.settings.disabledState = undefined;
+		this.steps = 1;
+		// we don't need to set the original state here because it is lazily created
+	}
 
-		const allPlugins = Object.keys(tplugins.manifests).filter (id => !pluginsToIgnore.includes(id));
-		const enabledPlugins = Object.keys(tplugins.plugins).filter (id => !pluginsToIgnore.includes(id));
-		const disabledPlugins = allPlugins.filter (id => !enabledPlugins.includes(id));
+	public async restore() {
+		if (this.disabledState == null) return;
+		for (let i = this.disabledState.length - 1; i >= 1; i--)
+			this.enablePlugins(this.disabledState[i]);
+		await this.disablePlugins(this.disabledState[0]);
+		this.reset();
+	}
 
-		if (mode === "count") {
-			noticeText =
-				"Total: " + allPlugins.length
-				+ "\nDisabled: " + disabledPlugins.length
-				+ "\nEnabled: " + enabledPlugins.length;
-		}
+	// EDPs = Enabled/Disabled Plugins
+	public getCurrentEDPs() {
+		const { enabled, disabled } = this.getVaultEDPsFrom(this.getIncludedPlugins() as Set<string>);
+		this.disabledState ??= [new Set(disabled)];
+		const currentDisabled = this.disabledState.last();
+		return { enabled, disabled: currentDisabled };
+	}
 
-		if (scope === "all") {
-			if (mode === "enable") {
-				for (const id of disabledPlugins) await tplugins.enablePluginAndSave(id);
-			} else if (mode === "disable") {
-				for (const id of enabledPlugins) await tplugins.disablePluginAndSave(id);
-			} else if (mode === "toggle") {
-				for (const id of enabledPlugins) await tplugins.disablePluginAndSave(id);
-				for (const id of disabledPlugins) await tplugins.enablePluginAndSave(id);
-			}
-			noticeText = mode.charAt(0).toUpperCase() + mode.slice(1, -1) + "ing all " + allPlugins.length.toString() + " plugins";
-		}
+	// EDPs = Enabled/Disabled Plugins
+	public getVaultEDPsFrom(from?: Set<string>) {
+		from ??= new Set(Object.keys(this.manifests));
+		// sort by display name rather than id
+		let included = Object.entries<PluginManifest>(this.manifests).filter(([key]) => from.has(key))
+			.sort((a, b) => b[1].name.localeCompare(a[1].name))
+			.map(([key, manifest]) => key);
 
-		if (scope === "half") {
-			if (mode === "enable") {
-				const disabled = disabledPlugins.length;
-				const half = Math.ceil(disabled / 2);
-				const halfOfDisabled = disabledPlugins.slice (0, half);
+		return {
+			enabled: included.filter(id => this.app.plugins.enabledPlugins.has(id)),
+			disabled: included.filter(id => !this.app.plugins.enabledPlugins.has(id))
+		};
+	}
 
-				for (const id of halfOfDisabled) await tplugins.enablePluginAndSave(id);
-				noticeText = "Enabling " + half.toString() + " out of " + disabled.toString() + " disabled plugins.";
+	public getIncludedPlugins(getPluginIds: boolean = true) {
+		const plugins = (Object.values(this.manifests) as unknown as PluginManifest[]).filter(
+			p => !this.settings.filterRegexes.some(
+				filter => p.id.match(new RegExp(filter, "i"))
+					|| (this.settings.filterUsingDisplayName && p.name.match(new RegExp(filter, "i")))
+					|| (this.settings.filterUsingAuthor && p.author.match(new RegExp(filter, "i")))
+					|| (this.settings.filterUsingDescription && p.description.match(new RegExp(filter, "i")))
+			));
+		return getPluginIds ? new Set(plugins.map(p => p.id)) : new Set(plugins);
+	}
 
-			} else if (mode === "disable") {
-				const enabled = enabledPlugins.length;
-				const half = Math.ceil(enabled / 2);
-				const halfOfEnabled = enabledPlugins.slice (0, half);
+	// enables in the reverse order that they were disabled (probably not necessary, but it's nice to be consistent)
+	async enablePlugins(plugins: string[] | Set<string>) {
+		if (plugins instanceof Set) plugins = [...plugins];
+		plugins.reverse().forEach(id => this.app.plugins.enablePluginAndSave(id));
+		return plugins;
+	}
 
-				for (const id of halfOfEnabled) await tplugins.disablePluginAndSave(id);
-				noticeText = "Disabling " + half.toString() + " out of " + enabled.toString() + " enabled plugins.";
-			}
-		}
-
-		// Notify & reload
-		const reloadAfterwards = (mode === "toggle" || mode === "disable");
-		if (reloadAfterwards) noticeText += "\n\nReloading Obsidian...";
-		new Notice (noticeText);
-
-		if (reloadAfterwards) {
-			setTimeout(() => {
-				this.app.commands.executeCommandById("app:reload");
-			}, reloadDelay);
-		}
+	async disablePlugins(plugins: string[] | Set<string>) {
+		if (plugins instanceof Set) plugins = [...plugins];
+		for (const id of plugins) await this.app.plugins.disablePluginAndSave(id);
+		return plugins;
 	}
 	async divideConquerSnippets (mode: string, scope?: string) {
 		console.log ("Mode: " + mode + ", Scope: " + scope);
