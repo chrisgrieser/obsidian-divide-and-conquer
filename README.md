@@ -49,7 +49,7 @@ eslint --fix *.ts
 In my day job, I am a sociologist studying the social mechanisms underlying the digital economy. For my PhD project, I investigate the governance of the app economy and how software ecosystems manage the tension between innovation and compatibility. If you are interested in this subject, feel free to get in touch!
 
 ### Profiles
-- Discord: `@pseudometa#9546`
+- [Discord](https://discordapp.com/users/462774483044794368/)
 - [Academic Website](https://chris-grieser.de/)
 - [GitHub](https://github.com/chrisgrieser/)
 - [Twitter](https://twitter.com/pseudo_meta)
@@ -57,5 +57,5 @@ In my day job, I am a sociologist studying the social mechanisms underlying the 
 - [LinkedIn](https://www.linkedin.com/in/christopher-grieser-ba693b17a/) <!-- markdown-link-check-disable-line -->
 
 ### Donate
-- [PayPal](https://www.paypal.com/paypalme/ChrisGrieser)
+- [PayPal](https://www.paypal.com/PayPalme/ChrisGrieser)
 - [Ko-Fi](https://ko-fi.com/pseudometa) <!-- markdown-link-check-disable-line -->
