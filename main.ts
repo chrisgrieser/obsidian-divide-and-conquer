@@ -15,15 +15,14 @@ declare module "obsidian" {
 			executeCommandById: (commandID: string) => void;
 
 		};
-    customCss: {
-          enabledSnippets: Set<string>;
-          snippets: string[];
-          setCssEnabledStatus(snippet: string, enable: boolean): void;
-     };
+		customCss: {
+			enabledSnippets: Set<string>;
+			snippets: string[];
+			setCssEnabledStatus(snippet: string, enable: boolean): void;
+		};
 
 	}
 }
-
 
 
 export default class divideAndConquer extends Plugin {
@@ -43,20 +42,18 @@ export default class divideAndConquer extends Plugin {
 
 		let maybeReload = () => {
 			if (this.settings.reloadAfterPluginChanges) // TODO: timeout isn't the best way to do this
-				setTimeout(() => this.app.commands.executeCommandById("app:reload"), 2000);
+				setTimeout(() => this.app.commands.executeCommandById("app:reload"), 2000); // eslint-disable-line no-magic-numbers
 		};
 
-		let notice = () => {
-			if (this.steps == 1) new Notice("DAC: Now in the original state.", 5000);
-			if (this.steps == 0) new Notice("DAC: All Plugins Enabled", 5000);
-
+		const notice = () => {
+			if (this.steps === 1) new Notice("DAC: Now in the original state.");
+			if (this.steps === 0) new Notice("DAC: All Plugins Enabled");
 		};
 
 		// compose takes any number of functions, binds them to "this", and returns a function that calls them in order
 		let compose = (...funcs: Function[]) => (...args: any[]) =>
 			funcs.reduce((promise, func) => promise.then(func.bind(this)), Promise.resolve());
-		let composed = (func: () => any) => async () => compose(func, maybeReload, notice).bind(this)();
-
+		const composed = (func: () => any) => async () => compose(func, maybeReload, notice).bind(this)();
 
 
 		await this.loadData();
@@ -91,8 +88,8 @@ export default class divideAndConquer extends Plugin {
 			name: "Restore - return to the original state",
 			callback: composed(this.restore)
 		});
-    
-    this.addCommand({
+
+		this.addCommand({
 			id: "count-enabled-and-disabled-snippets",
 			name: "Count enabled and disabled snippets",
 			callback: () => this.divideConquerSnippets("count"),
@@ -145,7 +142,7 @@ export default class divideAndConquer extends Plugin {
 	}
 
 	async bisect() {
-		if ((++this.steps) == 1) { this.restore(); return; }
+		if ((++this.steps) === 1) { this.restore(); return; }
 		const { enabled } = this.getCurrentEDPs();
 		const half = await this.disablePlugins(enabled.slice(0, Math.floor(enabled.length / 2)));
 		if (half.length > 0) this.disabledState.push(new Set(half));
@@ -162,7 +159,10 @@ export default class divideAndConquer extends Plugin {
 	}
 
 	public async reBisect() {
-		if (this.steps < 2) { new Notice("Cannot re-bisect the original state."); return; }
+		if (this.steps < 2) {
+			new Notice("Cannot re-bisect the original state.");
+			return;
+		}
 		const reenabled = await this.unBisect();
 		const { enabled } = this.getCurrentEDPs();
 		const toDisable = enabled.filter(id => !reenabled.has(id));
@@ -178,7 +178,7 @@ export default class divideAndConquer extends Plugin {
 	}
 
 	public async restore() {
-		if (this.disabledState == null) return;
+		if (this.disabledState === null) return;
 		for (let i = this.disabledState.length - 1; i >= 1; i--)
 			this.enablePlugins(this.disabledState[i]);
 		await this.disablePlugins(this.disabledState[0]);
@@ -198,8 +198,8 @@ export default class divideAndConquer extends Plugin {
 		from ??= new Set(Object.keys(this.manifests));
 		// sort by display name rather than id
 		let included = Object.entries<PluginManifest>(this.manifests).filter(([key]) => from.has(key))
-			.sort((a, b) => b[1].name.localeCompare(a[1].name))
-			.map(([key, manifest]) => key);
+		.sort((a, b) => b[1].name.localeCompare(a[1].name))
+		.map(([key, manifest]) => key);
 
 		return {
 			enabled: included.filter(id => this.app.plugins.enabledPlugins.has(id)),
@@ -209,12 +209,12 @@ export default class divideAndConquer extends Plugin {
 
 	public getIncludedPlugins(getPluginIds: boolean = true) {
 		const plugins = (Object.values(this.manifests) as unknown as PluginManifest[]).filter(
-			p => !this.settings.filterRegexes.some(
-				filter => p.id.match(new RegExp(filter, "i"))
-					|| (this.settings.filterUsingDisplayName && p.name.match(new RegExp(filter, "i")))
-					|| (this.settings.filterUsingAuthor && p.author.match(new RegExp(filter, "i")))
-					|| (this.settings.filterUsingDescription && p.description.match(new RegExp(filter, "i")))
-			));
+		                                                                                      p => !this.settings.filterRegexes.some(
+		                                                                                                                             filter => p.id.match(new RegExp(filter, "i"))
+		                                                                                                                             || (this.settings.filterUsingDisplayName && p.name.match(new RegExp(filter, "i")))
+		                                                                                                                             || (this.settings.filterUsingAuthor && p.author.match(new RegExp(filter, "i")))
+		                                                                                                                             || (this.settings.filterUsingDescription && p.description.match(new RegExp(filter, "i")))
+		                                                                                                                             ));
 		return getPluginIds ? new Set(plugins.map(p => p.id)) : new Set(plugins);
 	}
 
@@ -228,7 +228,7 @@ export default class divideAndConquer extends Plugin {
 	async disablePlugins(plugins: string[] | Set<string>) {
 		if (plugins instanceof Set) plugins = [...plugins];
 		for (const id of plugins) await this.app.plugins.disablePluginAndSave(id);
-		return plugins;
+			return plugins;
 	}
 	async divideConquerSnippets (mode: string, scope?: string) {
 		console.log ("Mode: " + mode + ", Scope: " + scope);
@@ -240,20 +240,20 @@ export default class divideAndConquer extends Plugin {
 		/** This array is the list of currently loaded snippets. */
 		const allSnippets = this.app.customCss.snippets;
 		const enabledSnippets = allSnippets.filter((snippet) =>
-			this.app.customCss.enabledSnippets.has(snippet)
-		);
+		                                           this.app.customCss.enabledSnippets.has(snippet)
+		                                           );
 		const disabledSnippets = allSnippets.filter(
-			(snippet) => !this.app.customCss.enabledSnippets.has(snippet)
-		);
+		                                            (snippet) => !this.app.customCss.enabledSnippets.has(snippet)
+		                                            );
 
 		if (mode === "count") {
 			noticeText =
-				"Total: " +
-				allSnippets.length +
-				"\nDisabled: " +
-				disabledSnippets.length +
-				"\nEnabled: " +
-				enabledSnippets.length;
+			"Total: " +
+			allSnippets.length +
+			"\nDisabled: " +
+			disabledSnippets.length +
+			"\nEnabled: " +
+			enabledSnippets.length;
 		}
 
 		if (scope === "all") {
@@ -261,7 +261,7 @@ export default class divideAndConquer extends Plugin {
 				for (const snippet of disabledSnippets)
 					await this.app.customCss.setCssEnabledStatus(snippet, true);
 			} else if (mode === "disable") {
-				for (const snippet of enabledSnippets) 
+				for (const snippet of enabledSnippets)
 					await this.app.customCss.setCssEnabledStatus(snippet, false);
 			} else if (mode === "toggle") {
 				for (const snippet of enabledSnippets)
@@ -270,11 +270,11 @@ export default class divideAndConquer extends Plugin {
 					await this.app.customCss.setCssEnabledStatus(snippet, true);
 			}
 			noticeText =
-				mode.charAt(0).toUpperCase() +
-				mode.slice(1, -1) +
-				"ing all " +
-				allSnippets.length.toString() +
-				" snippets";
+			mode.charAt(0).toUpperCase() +
+			mode.slice(1, -1) +
+			"ing all " +
+			allSnippets.length.toString() +
+			" snippets";
 		}
 
 		if (scope === "half") {
@@ -292,7 +292,7 @@ export default class divideAndConquer extends Plugin {
 				const half = Math.ceil(enabled / 2);
 				const halfOfEnabled = enabledSnippets.slice (0, half);
 
-				for (const snippet of halfOfEnabled) 
+				for (const snippet of halfOfEnabled)
 					await this.app.customCss.setCssEnabledStatus(snippet, false);
 				noticeText = "Disabling " + half.toString() + " out of " + enabled.toString() + " enabled snippets.";
 			}
