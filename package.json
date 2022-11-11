@@ -19,5 +19,10 @@
 		"obsidian": "^0.16.3",
 		"tslib": "2.3.1",
 		"typescript": "4.4.4"
+	},
+	"dependencies": {
+		"@types/tinycolor": "^1.1.27",
+		"monkey-around": "^2.3.0",
+		"tinycolor2": "^1.4.2"
 	}
 }
