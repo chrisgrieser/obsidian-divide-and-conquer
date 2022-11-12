@@ -1,166 +1,27 @@
 import { CommunityPluginsTab, ExtraButtonComponent, Notice, Plugin, PluginManifest } from "obsidian";
 import { DACSettingsTab, DEFAULT_SETTINGS } from "settings";
+import { removeSetupDebugNotice, simpleCalc } from './util';
 
 import { around } from 'monkey-around';
 
 var tinycolor = require("tinycolor2");
 
-// add type safety for the undocumented methods
-declare module "obsidian" {
-	interface App {
-		plugins: {
-			plugins: string[];
-			manifests: {string:PluginManifest};
-			enabledPlugins: Set<string>;
-			disablePluginAndSave: (id: string) => Promise<boolean>;
-			enablePluginAndSave: (id: string) => Promise<boolean>;
-		};
-		commands: {
-			executeCommandById: (commandID: string) => void;
-
-		};
-		customCss: {
-			enabledSnippets: Set<string>;
-			snippets: string[];
-			setCssEnabledStatus(snippet: string, enable: boolean): void;
-		};
-
-	}
-}
 
 
-// accepts a string and checks if it is a calc expression (limited to percentages and addition/subtraction) and returns the resulting string
-function simpleCalc(str: string) {
-	const calcRegex = /calc\((\d+)%\s*([+-])\s*(\d+)%\)/;
-	const match = str.match(calcRegex);
-	if (!match) return str;
-	const [_, a, op, b] = match;
-	const result = op === "+" ? +a + +b : +a - +b;
-	return str.replace(calcRegex, `${result}%`);
-}
 
 export default class divideAndConquer extends Plugin {
 	settings: typeof DEFAULT_SETTINGS;
-	disabledState: Set<string>[];
 	manifests = this.app.plugins.manifests;
+
 	level = 1;
-	controlElements: HTMLElement[] = null;
 	levelEl = this.getLevelText();
+	controlElements: HTMLElement[] = null;
 	enabledColor: string = null;
 	disabledColor: string = null;
-	snapshot:Set<string>;
-
-	// composed is an async function that accepts a function and returns a function
 	composed: (func: () => any) => () => any;
 	refreshPlugins: () => void = () => { };
-
-	getLevelText() {
-		let span = document.createElement("span");
-		span.setText(`Level: ${this.level}`);
-		return span;
-	}
-	getControlContainer() {
-		return this.getSettingsTab("community-plugins").containerEl.find(".setting-item-heading").find(".setting-item-control") as HTMLDivElement;
-	}
-	getInstalledPluginsContainer() {
-		return this.getSettingsTab("community-plugins").containerEl.find(".installed-plugins-container") as HTMLDivElement;
-	}
-	getReloadButton() {
-		return this.getControlContainer().find('[aria-label="Reload plugins"]') as HTMLDivElement;
-	}
-
-	overrideDisplay(community: CommunityPluginsTab, old: any) {
-		let plugin = this;
-		return (function display(...args: any[]) {
-			plugin.refreshPlugins = () => {
-				plugin.app.plugins.loadManifests().then(() => {
-					old.apply(community, args); // render the community plugin tab after re-loading the manifests
-					plugin.addControls(); // add the controls back
-					plugin.colorizeIgnoredToggles();
-				});
-			};
-			plugin.refreshPlugins();
-		}).bind(plugin, community);
-	}
-	
-
-	colorizeIgnoredToggles() {
-		let container = this.getInstalledPluginsContainer();
-		let name2Toggle = new Map<string, HTMLDivElement>();
-		for (var i = 0; i < container.children.length; i++) {
-			let child = container.children[i];
-			let name = (child.querySelector(".setting-item-name") as HTMLDivElement).innerText;
-			let toggle = (child.querySelector(".setting-item-control")).querySelector('.checkbox-container') as HTMLDivElement;
-			if (name && toggle) name2Toggle.set(name, toggle);
-		}
-
-		let included = new Set([...(this.getIncludedPlugins(false) as Set<PluginManifest>)].map(m => m.name));
-		for (let [name, toggle] of name2Toggle){
-			// if the plugin is filtered by regex settings, we indicate this visually by coloring the toggle
-			if (!included.has(name)) {
-				let colorToggle = () => {
-					if (toggle.classList.contains('is-enabled')) toggle.style.backgroundColor = this.enabledColor;
-					else toggle.style.backgroundColor = this.disabledColor;
-				};
-				colorToggle();
-				toggle.addEventListener('click', colorToggle);
-			}
-			
-			// console.log(this.manifests);
-			let id = Object.keys(this.manifests).filter(k => this.manifests[k].name === name).shift();
-			// if the plugin is in the snapshot, we indicate this visually by setting outline-offset: 1px; and outline: outset;
-			if (this.snapshot && this.snapshot.has(id)) {
-				toggle.style.outlineOffset = "1px";
-				toggle.style.outline = "outset";
-			}
-		}
-
-	}
-
-	addControls() {
-		let container = this.getControlContainer(), composed = this.composed;
-		this.controlElements ??= [
-			new ExtraButtonComponent(container)
-				.setIcon("camera")
-				.setTooltip("Reset - Snapshot the current state")
-				.onClick(composed(this.reset))
-				.setDisabled(false).extraSettingsEl,
-
-			new ExtraButtonComponent(container)
-				.setIcon("switch-camera")
-				.setTooltip("Restore - Restore Snapshot")
-				.onClick(composed(this.restore))
-				.setDisabled(false).extraSettingsEl,
-
-			new ExtraButtonComponent(container)
-				.setIcon("expand")
-				.setTooltip("UnBisect - Go up a level")
-				.onClick(composed(this.unBisect))
-				.setDisabled(false).extraSettingsEl,
-
-			new ExtraButtonComponent(container)
-				.setIcon("minimize")
-				.setTooltip("Bisect - Go down a level")
-				.onClick(composed(this.bisect))
-				.setDisabled(false).extraSettingsEl,
-
-			new ExtraButtonComponent(container)
-				.setIcon("flip-vertical")
-				.setTooltip("Re-bisect - Go back a level, then down the other side")
-				.onClick(composed(this.reBisect))
-				.setDisabled(false).extraSettingsEl,
-
-			this.levelEl,
-		];
-		this.levelEl.setText(`Level: ${this.level}`);
-		this.controlElements.forEach(button => container.appendChild(button));
-		return container;
-	}
-
-
-	getSettingsTab(id: string) {
-		return this.app.setting.settingTabs.filter(t => t.id === id).shift();
-	}
+	disabledState: Set<string>[];
+	snapshot: Set<string>;
 
 	async onunload() {
 		this.saveData();
@@ -171,37 +32,32 @@ export default class divideAndConquer extends Plugin {
 		this.loadData();
 		console.log("Divide & Conquer Plugin loaded.");
 
+		// override the display of the community plugins tab to add controls
 		const community: CommunityPluginsTab = this.getSettingsTab("community-plugins");
 		if (community) this.register(around(community, { display: this.overrideDisplay.bind(this, community) }));
 
 		const notice = () => {
-			// get divs with the 'notice' class, if they contain the text 'plugin setup', remove them
-			let notices = document.querySelectorAll('.notice');
-			for (let i = 0; i < notices.length; i++) {
-				let notice = notices[i];
-				if (notice.innerText.includes('plugin setup')) notice.remove();
-			}
-
+			removeSetupDebugNotice();
 			let notic_str = `DAC level:${this.level} `;
 			if (this.level === 1) new Notice(notic_str + "- Now in the original state");
 			else if (this.level === 0) new Notice(notic_str + "- All Plugins Enabled");
 			else new Notice(notic_str);
 		};
-		
-		let maybeReload = () => {
+
+		const maybeReload = () => {
 			if (this.settings.reloadAfterPluginChanges) // TODO: timeout isn't the best way to do this
 				setTimeout(() => this.app.commands.executeCommandById("app:reload"), 2000); // eslint-disable-line no-magic-numbers
 		};
 
-		let maybeInit = () => {
-			if(this.settings.initializeAfterPluginChanges)
+		const maybeInit = () => {
+			if (this.settings.initializeAfterPluginChanges)
 				return this.app.plugins.initialize();
 		};
 
 		// compose takes any number of functions, binds them to "this", and returns a function that calls them in order
-		let compose = (...funcs: Function[]) => (...args: any[]) =>
+		const compose = (...funcs: Function[]) => (...args: any[]) =>
 			funcs.reduce((promise, func) => promise.then(func.bind(this)), Promise.resolve());
-		this.composed = (func: () => any) => async () => compose(func, this.refreshPlugins, maybeReload,maybeInit,notice).bind(this)();
+		this.composed = (func: () => any) => async () => compose(func, this.refreshPlugins, maybeReload, maybeInit, notice).bind(this)();
 		const composed = this.composed;
 
 
@@ -342,7 +198,7 @@ export default class divideAndConquer extends Plugin {
 	public reset() {
 		this.disabledState = this.settings.disabledState = this.snapshot = this.settings.snapshot = undefined;
 		this.level = 1;
-		let {enabled,disabled}= this.getVaultEDPsFrom(this.getIncludedPlugins() as Set<string>);
+		let { enabled, disabled } = this.getVaultEDPsFrom(this.getIncludedPlugins() as Set<string>);
 		this.disabledState = [new Set(disabled)];
 		this.snapshot = new Set(disabled);
 		this.saveData(false);
@@ -352,7 +208,7 @@ export default class divideAndConquer extends Plugin {
 		if (!this.disabledState) return;
 		for (let i = this.disabledState.length - 1; i >= 1; i--)
 			this.enablePlugins(this.disabledState[i]);
-		console.log(this.snapshot)
+		console.log(this.snapshot);
 		await this.disablePlugins(this.snapshot);
 		this.reset();
 	}
@@ -478,5 +334,114 @@ export default class divideAndConquer extends Plugin {
 
 	}
 
+	getLevelText() {
+		let span = document.createElement("span");
+		span.setText(`Level: ${this.level}`);
+		return span;
+	}
+
+	getControlContainer() {
+		return this.getSettingsTab("community-plugins").containerEl.find(".setting-item-heading").find(".setting-item-control") as HTMLDivElement;
+	}
+
+	getInstalledPluginsContainer() {
+		return this.getSettingsTab("community-plugins").containerEl.find(".installed-plugins-container") as HTMLDivElement;
+	}
+
+	getReloadButton() {
+		return this.getControlContainer().find('[aria-label="Reload plugins"]') as HTMLDivElement;
+	}
+
+	getSettingsTab(id: string) {
+		return this.app.setting.settingTabs.filter(t => t.id === id).shift();
+	}
+
+	overrideDisplay(community: CommunityPluginsTab, old: any) {
+		let plugin = this;
+		return (function display(...args: any[]) {
+			plugin.refreshPlugins = () => {
+				plugin.app.plugins.loadManifests().then(() => {
+					old.apply(community, args); // render the community plugin tab after re-loading the manifests
+					plugin.addControls(); // add the controls back
+					plugin.colorizeIgnoredToggles();
+				});
+			};
+			plugin.refreshPlugins();
+		}).bind(plugin, community);
+	}
+
+
+	colorizeIgnoredToggles() {
+		let container = this.getInstalledPluginsContainer();
+		let name2Toggle = new Map<string, HTMLDivElement>();
+		for (var i = 0; i < container.children.length; i++) {
+			let child = container.children[i];
+			let name = (child.querySelector(".setting-item-name") as HTMLDivElement).innerText;
+			let toggle = (child.querySelector(".setting-item-control")).querySelector('.checkbox-container') as HTMLDivElement;
+			if (name && toggle) name2Toggle.set(name, toggle);
+		}
+
+		let included = new Set([...(this.getIncludedPlugins(false) as Set<PluginManifest>)].map(m => m.name));
+		for (let [name, toggle] of name2Toggle) {
+			// if the plugin is filtered by regex settings, we indicate this visually by coloring the toggle
+			if (!included.has(name)) {
+				let colorToggle = () => {
+					if (toggle.classList.contains('is-enabled')) toggle.style.backgroundColor = this.enabledColor;
+					else toggle.style.backgroundColor = this.disabledColor;
+				};
+				colorToggle();
+				toggle.addEventListener('click', colorToggle);
+			}
+
+			// console.log(this.manifests);
+			let id = Object.keys(this.manifests).filter(k => this.manifests[k].name === name).shift();
+			// if the plugin is in the snapshot, we indicate this visually by setting outline-offset: 1px; and outline: outset;
+			if (this.snapshot && this.snapshot.has(id)) {
+				toggle.style.outlineOffset = "1px";
+				toggle.style.outline = "outset";
+			}
+		}
+
+	}
+
+	addControls() {
+		let container = this.getControlContainer(), composed = this.composed;
+		this.controlElements ??= [
+			new ExtraButtonComponent(container)
+				.setIcon("camera")
+				.setTooltip("Reset - Snapshot the current state")
+				.onClick(composed(this.reset))
+				.setDisabled(false).extraSettingsEl,
+
+			new ExtraButtonComponent(container)
+				.setIcon("switch-camera")
+				.setTooltip("Restore - Restore Snapshot")
+				.onClick(composed(this.restore))
+				.setDisabled(false).extraSettingsEl,
+
+			new ExtraButtonComponent(container)
+				.setIcon("expand")
+				.setTooltip("UnBisect - Go up a level")
+				.onClick(composed(this.unBisect))
+				.setDisabled(false).extraSettingsEl,
+
+			new ExtraButtonComponent(container)
+				.setIcon("minimize")
+				.setTooltip("Bisect - Go down a level")
+				.onClick(composed(this.bisect))
+				.setDisabled(false).extraSettingsEl,
+
+			new ExtraButtonComponent(container)
+				.setIcon("flip-vertical")
+				.setTooltip("Re-bisect - Go back a level, then down the other side")
+				.onClick(composed(this.reBisect))
+				.setDisabled(false).extraSettingsEl,
+
+			this.levelEl,
+		];
+		this.levelEl.setText(`Level: ${this.level}`);
+		this.controlElements.forEach(button => container.appendChild(button));
+		return container;
+	}
 
 }
