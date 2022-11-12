@@ -19,7 +19,7 @@ export default class divideAndConquer extends Plugin {
 	enabledColor: string = null;
 	disabledColor: string = null;
 	composed: (func: () => any) => () => any;
-	refreshPlugins: () => void = () => { };
+	refreshCommunityTab: () => void = () => { };
 	disabledState: Set<string>[];
 	snapshot: Set<string>;
 
@@ -29,7 +29,9 @@ export default class divideAndConquer extends Plugin {
 	}
 
 	async onload() {
-		this.loadData();
+		await this.loadData();
+		this.addSettingTab(new DACSettingsTab(this.app, this));
+
 		console.log("Divide & Conquer Plugin loaded.");
 
 		const notice = () => {
@@ -41,91 +43,22 @@ export default class divideAndConquer extends Plugin {
 		};
 
 		const maybeReload = () => {
-			if (this.settings.reloadAfterPluginChanges) setTimeout(() => this.app.commands.executeCommandById("app:reload"), 2000); 
+			if (this.settings.reloadAfterPluginChanges) setTimeout(() => this.app.commands.executeCommandById("app:reload"), 2000);
 		};
 
 		const maybeInit = () => {
 			if (this.settings.initializeAfterPluginChanges) return this.app.plugins.initialize();
 		};
 
-		this.composed = (func: () => any) => async () => compose(this, func, this.refreshPlugins, maybeReload, maybeInit, notice).bind(this)();
-		const composed = this.composed;
-
-		await this.loadData();
-		this.addSettingTab(new DACSettingsTab(this.app, this));
-
-		this.addCommand({
-			id: "bisect",
-			name: "Bisect - Disable half of the active plugins, or return to the original state if all plugins are active",
-			callback: composed(this.bisect)
-		});
-
-		this.addCommand({
-			id: "un-bisect",
-			name: "Un-Bisect - Undo the last bisection, or enable all plugins if in the original state",
-			callback: composed(this.unBisect)
-		});
-
-		this.addCommand({
-			id: "re-bisect",
-			name: "Re-Bisect - Undo the last bisection, then disable the other half",
-			callback: composed(this.reBisect)
-		});
-
-		this.addCommand({
-			id: "reset",
-			name: "Reset - forget the original state and set the current state as the new original state",
-			callback: composed(this.reset)
-		});
-
-		this.addCommand({
-			id: "restore",
-			name: "Restore - return to the original state",
-			callback: composed(this.restore)
-		});
-
-		this.addCommand({
-			id: "count-enabled-and-disabled-snippets",
-			name: "Count enabled and disabled snippets",
-			callback: () => this.divideConquerSnippets("count"),
-		});
-
-		this.addCommand({
-			id: "disable-all-snippets",
-			name: "Disable all snippets",
-			callback: () => this.divideConquerSnippets("disable", "all"),
-		});
-
-		this.addCommand({
-			id: "enable-all-snippets",
-			name: "Enable all snippets",
-			callback: () => this.divideConquerSnippets("enable", "all"),
-		});
-
-		this.addCommand({
-			id: "toggle-all-snippets",
-			name: "Toggle all plugins (Disable enabled snippets & enable disabled ones)",
-			callback: () => this.divideConquerSnippets("toggle", "all"),
-		});
-
-		this.addCommand({
-			id: "disable-half-snippets",
-			name: "Disable half of enabled snippets",
-			callback: () => this.divideConquerSnippets("disable", "half"),
-		});
-
-		this.addCommand({
-			id: "enable-half-snippets",
-			name: "Enable half of disabled snippets",
-			callback: () => this.divideConquerSnippets("enable", "half"),
-		});
+		this.composed = (func: () => any) => async () => compose(this, func, this.refreshCommunityTab, maybeReload, maybeInit, notice).bind(this)();
+		this.addCommands();
 
 		this.app.workspace.onLayoutReady(() => {
 			let appContainer = document.getElementsByClassName("app-container").item(0) as HTMLDivElement;
 			this.enabledColor ??= tinycolor(simpleCalc(appContainer.getCssPropertyValue('--checkbox-color'))).spin(180).toHexString();
 			this.disabledColor ??= tinycolor(this.enabledColor).darken(35).toHexString();
 		});
-		
+
 		// override the display of the community plugins tab to add controls
 		const community: CommunityPluginsTab = this.getSettingsTab("community-plugins");
 		if (community) this.register(around(community, { display: this.overrideDisplay.bind(this, community) }));
@@ -247,6 +180,7 @@ export default class divideAndConquer extends Plugin {
 		for (const id of plugins) await this.app.plugins.disablePluginAndSave(id);
 		return plugins;
 	}
+
 	async divideConquerSnippets(mode: string, scope?: string) {
 		console.log("Mode: " + mode + ", Scope: " + scope);
 		const reloadDelay = 2000;
@@ -317,23 +251,15 @@ export default class divideAndConquer extends Plugin {
 
 		// Notify
 		new Notice(noticeText);
-
 		// no need to reload for snippets
-
-	}
-
-	getLevelText() {
-		let span = document.createElement("span");
-		span.setText(`Level: ${this.level}`);
-		return span;
 	}
 
 	getControlContainer() {
-		return this.getSettingsTab("community-plugins").containerEl.find(".setting-item-heading").find(".setting-item-control") as HTMLDivElement;
+		return this.getSettingsTab("community-plugins").containerEl.find(".setting-item-heading").find(".setting-item-control");
 	}
 
 	getInstalledPluginsContainer() {
-		return this.getSettingsTab("community-plugins").containerEl.find(".installed-plugins-container") as HTMLDivElement;
+		return this.getSettingsTab("community-plugins").containerEl.find(".installed-plugins-container");
 	}
 
 	getReloadButton() {
@@ -344,22 +270,30 @@ export default class divideAndConquer extends Plugin {
 		return this.app.setting.settingTabs.filter(t => t.id === id).shift();
 	}
 
-	overrideDisplay(community: CommunityPluginsTab, old: any) {
+	private getLevelText() {
+		let span = document.createElement("span");
+		span.setText(`Level: ${this.level}`);
+		return span;
+	}
+
+	private overrideDisplay(community: CommunityPluginsTab, old: any) {
 		let plugin = this;
 		return (function display(...args: any[]) {
-			plugin.refreshPlugins = () => {
+			plugin.refreshCommunityTab = () => {
 				plugin.app.plugins.loadManifests().then(() => {
 					old.apply(community, args); // render the community plugin tab after re-loading the manifests
 					plugin.addControls(); // add the controls back
 					plugin.colorizeIgnoredToggles();
+					let reload = plugin.getReloadButton();
+					reload.onClickEvent = () => plugin.refreshCommunityTab();
 				});
 			};
-			plugin.refreshPlugins();
+			plugin.refreshCommunityTab();
 		}).bind(plugin, community);
 	}
 
 
-	colorizeIgnoredToggles() {
+	private colorizeIgnoredToggles() {
 		let container = this.getInstalledPluginsContainer();
 		let name2Toggle = new Map<string, HTMLDivElement>();
 		for (var i = 0; i < container.children.length; i++) {
@@ -392,7 +326,7 @@ export default class divideAndConquer extends Plugin {
 
 	}
 
-	addControls() {
+	private addControls() {
 		let container = this.getControlContainer(), composed = this.composed;
 		this.controlElements ??= [
 			new ExtraButtonComponent(container)
@@ -430,6 +364,71 @@ export default class divideAndConquer extends Plugin {
 		this.levelEl.setText(`Level: ${this.level}`);
 		this.controlElements.forEach(button => container.appendChild(button));
 		return container;
+	}
+
+	private addCommands() {
+		const composed = this.composed;
+
+		this.addCommand({
+			id: "bisect", callback: composed(this.bisect),
+			name: "Bisect - Disable half of the active plugins, or return to the original state if all plugins are active",
+		});
+
+		this.addCommand({
+			id: "un-bisect", callback: composed(this.unBisect),
+			name: "Un-Bisect - Undo the last bisection, or enable all plugins if in the original state",
+		});
+
+		this.addCommand({
+			id: "re-bisect", callback: composed(this.reBisect),
+			name: "Re-Bisect - Undo the last bisection, then disable the other half",
+		});
+
+		this.addCommand({
+			id: "reset", callback: composed(this.reset),
+			name: "Reset - forget the original state and set the current state as the new original state",
+		});
+
+		this.addCommand({
+			id: "restore", callback: composed(this.restore),
+			name: "Restore - return to the original state",
+		});
+
+		this.addCommand({
+			id: "count-enabled-and-disabled-snippets",
+			name: "Count enabled and disabled snippets",
+			callback: () => this.divideConquerSnippets("count"),
+		});
+
+		this.addCommand({
+			id: "disable-all-snippets",
+			name: "Disable all snippets",
+			callback: () => this.divideConquerSnippets("disable", "all"),
+		});
+
+		this.addCommand({
+			id: "enable-all-snippets",
+			name: "Enable all snippets",
+			callback: () => this.divideConquerSnippets("enable", "all"),
+		});
+
+		this.addCommand({
+			id: "toggle-all-snippets",
+			name: "Toggle all plugins (Disable enabled snippets & enable disabled ones)",
+			callback: () => this.divideConquerSnippets("toggle", "all"),
+		});
+
+		this.addCommand({
+			id: "disable-half-snippets",
+			name: "Disable half of enabled snippets",
+			callback: () => this.divideConquerSnippets("disable", "half"),
+		});
+
+		this.addCommand({
+			id: "enable-half-snippets",
+			name: "Enable half of disabled snippets",
+			callback: () => this.divideConquerSnippets("enable", "half"),
+		});
 	}
 
 }

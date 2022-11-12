@@ -31,6 +31,7 @@ declare module "obsidian" {
 			disablePluginAndSave: (id: string) => Promise<boolean>;
 			enablePluginAndSave: (id: string) => Promise<boolean>;
 			initialize: () => Promise<void>;
+			loadManifests: () => Promise<void>;
 		};
 		commands: {
 			executeCommandById: (commandID: string) => void;
@@ -41,6 +42,9 @@ declare module "obsidian" {
 			snippets: string[];
 			setCssEnabledStatus(snippet: string, enable: boolean): void;
 		};
+		setting: {
+			settingTabs: {id:string, containerEl:HTMLElement}[];
+		}
 
 	}
 }
