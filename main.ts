@@ -50,7 +50,7 @@ export default class divideAndConquer extends Plugin {
 			if (this.settings.initializeAfterPluginChanges) return this.app.plugins.initialize();
 		};
 
-		this.composed = (func: () => any) => async () => compose(this, func, this.refreshCommunityTab, maybeReload, maybeInit, notice).bind(this)();
+		this.composed = (func: () => any) => async () => compose(this, func, maybeReload, maybeInit, this.refreshCommunityTab, notice).bind(this)();
 		this.addCommands();
 
 		this.app.workspace.onLayoutReady(() => {
@@ -122,15 +122,15 @@ export default class divideAndConquer extends Plugin {
 		let { enabled, disabled } = this.getVaultEDPsFrom(this.getIncludedPlugins() as Set<string>);
 		this.disabledState = [new Set(disabled)];
 		this.snapshot = new Set(disabled);
+		console.log('Snapshot:', this.snapshot);
 		this.saveData(false);
 	}
 
 	public async restore() {
-		if (!this.disabledState) return;
-		for (let i = this.disabledState.length - 1; i >= 1; i--)
-			this.enablePlugins(this.disabledState[i]);
-		console.log(this.snapshot);
-		await this.disablePlugins(this.snapshot);
+		if (this.snapshot) await this.disablePlugins(this.snapshot);
+		if (this.disabledState) 
+			for (let i = this.disabledState.length - 1; i >= 1; i--)
+				this.enablePlugins(this.disabledState[i]);
 		this.reset();
 	}
 
@@ -171,12 +171,14 @@ export default class divideAndConquer extends Plugin {
 	// enables in the reverse order that they were disabled (probably not necessary, but it's nice to be consistent)
 	async enablePlugins(plugins: string[] | Set<string>) {
 		if (plugins instanceof Set) plugins = [...plugins];
+		console.log("Enabling plugins:", plugins);
 		plugins.reverse().forEach(id => this.app.plugins.enablePluginAndSave(id));
 		return plugins;
 	}
 
 	async disablePlugins(plugins: string[] | Set<string>) {
 		if (plugins instanceof Set) plugins = [...plugins];
+		console.log("Disabling plugins:", plugins);
 		for (const id of plugins) await this.app.plugins.disablePluginAndSave(id);
 		return plugins;
 	}

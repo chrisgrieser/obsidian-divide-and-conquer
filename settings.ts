@@ -40,7 +40,7 @@ export class DACSettingsTab extends PluginSettingTab {
         const { containerEl } = this;
         containerEl.empty();
         containerEl.createEl('h2', { text: 'Divide and Conquer' });
-        containerEl.createEl('p', { text: 'Note: Reinitializing or Reloading may cause disabled plugins to dissappear, close and opening the menu to see them again' });
+        containerEl.createEl('p', { text: 'Note: Reinitializing or Reloading may cause disabled plugins to dissappear, close and open the menu to see them again' });
 
         new Setting(containerEl)
             .setName('Reinitialize Obsidian after plugin changes')
