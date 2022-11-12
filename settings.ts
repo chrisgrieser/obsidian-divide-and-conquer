@@ -7,8 +7,10 @@ export interface DACSettings {
     filterUsingDisplayName: boolean,
     filterUsingAuthor: boolean,
     filterUsingDescription: boolean,
+    initializeAfterPluginChanges: boolean,
     reloadAfterPluginChanges: boolean,
     disabledState: string;
+    snapshot: string;
 }
 
 export const DEFAULT_SETTINGS: DACSettings = {
@@ -19,8 +21,10 @@ export const DEFAULT_SETTINGS: DACSettings = {
     filterUsingDisplayName: true,
     filterUsingAuthor: false,
     filterUsingDescription: false,
+    initializeAfterPluginChanges: false,
     reloadAfterPluginChanges: false,
     disabledState: undefined,
+    snapshot: undefined,
 };
 
 
@@ -37,16 +41,28 @@ export class DACSettingsTab extends PluginSettingTab {
         containerEl.empty();
         containerEl.createEl('h2', { text: 'Divide and Conquer' });
 
-        new Setting(containerEl)
-            .setName('Reload Obsidian after plugin changes')
-            .addToggle((toggle) =>
-                toggle
-                    .setValue(this.plugin.settings.reloadAfterPluginChanges)
-                    .onChange(async (value) => {
-                        this.plugin.settings.reloadAfterPluginChanges = value;
-                        await this.plugin.saveData(false);
-                    })
-            );
+        // temporarily removing since behavior is unpredictable and I don't want to think about it right now
+        // new Setting(containerEl)
+        //     .setName('Reinitialize Obsidian after plugin changes (this is sometimes necessary, and shows setup times if you have "Debug startup time" enabled in the Community Plugins tab)')
+        //     .addToggle((toggle) =>
+        //         toggle
+        //             .setValue(this.plugin.settings.initializeAfterPluginChanges)
+        //             .onChange(async (value) => {
+        //                 this.plugin.settings.initializeAfterPluginChanges = value;
+        //                 await this.plugin.saveData(false);
+        //             })
+        //     );
+
+        //     new Setting(containerEl)
+        //     .setName('Reload Obsidian after plugin changes')
+        //     .addToggle((toggle) =>
+        //         toggle
+        //             .setValue(this.plugin.settings.reloadAfterPluginChanges)
+        //             .onChange(async (value) => {
+        //                 this.plugin.settings.reloadAfterPluginChanges = value;
+        //                 await this.plugin.saveData(false);
+        //             })
+        //     );
 
         containerEl.createEl('p', { text: 'Changing any of the following settings will restore plugins to the original state.' });
 
