@@ -16,6 +16,10 @@ export function removeSetupDebugNotice() {
 	}
 }
 
+// compose takes any number of functions, binds them to "_this", and returns a function that calls them in order
+export const compose = (_this:any,...funcs: Function[]) => (...args: any[]) =>
+	funcs.reduce((promise, func) => promise.then(func.bind(_this)), Promise.resolve());
+
 
 // add type safety for the undocumented methods
 declare module "obsidian" {

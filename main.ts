@@ -1,6 +1,6 @@
 import { CommunityPluginsTab, ExtraButtonComponent, Notice, Plugin, PluginManifest } from "obsidian";
 import { DACSettingsTab, DEFAULT_SETTINGS } from "settings";
-import { removeSetupDebugNotice, simpleCalc } from './util';
+import { compose, removeSetupDebugNotice, simpleCalc } from './util';
 
 import { around } from 'monkey-around';
 
@@ -32,10 +32,6 @@ export default class divideAndConquer extends Plugin {
 		this.loadData();
 		console.log("Divide & Conquer Plugin loaded.");
 
-		// override the display of the community plugins tab to add controls
-		const community: CommunityPluginsTab = this.getSettingsTab("community-plugins");
-		if (community) this.register(around(community, { display: this.overrideDisplay.bind(this, community) }));
-
 		const notice = () => {
 			removeSetupDebugNotice();
 			let notic_str = `DAC level:${this.level} `;
@@ -45,21 +41,15 @@ export default class divideAndConquer extends Plugin {
 		};
 
 		const maybeReload = () => {
-			if (this.settings.reloadAfterPluginChanges) // TODO: timeout isn't the best way to do this
-				setTimeout(() => this.app.commands.executeCommandById("app:reload"), 2000); // eslint-disable-line no-magic-numbers
+			if (this.settings.reloadAfterPluginChanges) setTimeout(() => this.app.commands.executeCommandById("app:reload"), 2000); 
 		};
 
 		const maybeInit = () => {
-			if (this.settings.initializeAfterPluginChanges)
-				return this.app.plugins.initialize();
+			if (this.settings.initializeAfterPluginChanges) return this.app.plugins.initialize();
 		};
 
-		// compose takes any number of functions, binds them to "this", and returns a function that calls them in order
-		const compose = (...funcs: Function[]) => (...args: any[]) =>
-			funcs.reduce((promise, func) => promise.then(func.bind(this)), Promise.resolve());
-		this.composed = (func: () => any) => async () => compose(func, this.refreshPlugins, maybeReload, maybeInit, notice).bind(this)();
+		this.composed = (func: () => any) => async () => compose(this, func, this.refreshPlugins, maybeReload, maybeInit, notice).bind(this)();
 		const composed = this.composed;
-
 
 		await this.loadData();
 		this.addSettingTab(new DACSettingsTab(this.app, this));
@@ -134,13 +124,11 @@ export default class divideAndConquer extends Plugin {
 			let appContainer = document.getElementsByClassName("app-container").item(0) as HTMLDivElement;
 			this.enabledColor ??= tinycolor(simpleCalc(appContainer.getCssPropertyValue('--checkbox-color'))).spin(180).toHexString();
 			this.disabledColor ??= tinycolor(this.enabledColor).darken(35).toHexString();
-			console.log(
-				appContainer.getCssPropertyValue('--checkbox-color'),
-				simpleCalc(appContainer.getCssPropertyValue('--checkbox-color')),
-				tinycolor(simpleCalc(appContainer.getCssPropertyValue('--checkbox-color'))).spin(180).toString(),
-				tinycolor(simpleCalc(appContainer.getCssPropertyValue('--checkbox-color'))).spin(180).toHexString(),
-			);
 		});
+		
+		// override the display of the community plugins tab to add controls
+		const community: CommunityPluginsTab = this.getSettingsTab("community-plugins");
+		if (community) this.register(around(community, { display: this.overrideDisplay.bind(this, community) }));
 	}
 
 	public async loadData() {
