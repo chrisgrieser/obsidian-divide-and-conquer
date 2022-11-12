@@ -18,6 +18,7 @@ declare module "obsidian" {
 			enabledSnippets: Set<string>;
 			snippets: string[];
 			setCssEnabledStatus(snippet: string, enable: boolean): void;
+			loadSnippets(): Promise<void>;
 		};
 		setting: {
 			settingTabs: {id:string, containerEl:HTMLElement}[];
@@ -45,11 +46,13 @@ declare module "obsidian" {
 		},
 	}
 
-    interface CommunityPluginsTab {
-        installedPluginsEl: HTMLElement;
+    interface SettingsTab {
         containerEl: HTMLElement;
         navEl: HTMLElement;
         display(...args: any[]): void;
         hide(): any;
+		reload(): Promise<void>;
+		heading:string;
+		reloadLabel: string;
     }
 }

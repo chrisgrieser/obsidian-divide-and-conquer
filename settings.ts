@@ -9,8 +9,8 @@ export interface DACSettings {
     filterUsingDescription: boolean,
     initializeAfterPluginChanges: boolean,
     reloadAfterPluginChanges: boolean,
-    disabledState: string;
-    snapshot: string;
+    disabledStates: string;
+    snapshots: string;
 }
 
 export const DEFAULT_SETTINGS: DACSettings = {
@@ -23,8 +23,8 @@ export const DEFAULT_SETTINGS: DACSettings = {
     filterUsingDescription: false,
     initializeAfterPluginChanges: false,
     reloadAfterPluginChanges: false,
-    disabledState: undefined,
-    snapshot: undefined,
+    disabledStates: undefined,
+    snapshots: undefined,
 };
 
 
