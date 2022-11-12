@@ -1,6 +1,6 @@
 import { CommunityPluginsTab, ExtraButtonComponent, Notice, Plugin, PluginManifest } from "obsidian";
 import { DACSettingsTab, DEFAULT_SETTINGS } from "settings";
-import { compose, removeSetupDebugNotice, simpleCalc } from './util';
+import { compose, queryText, removeSetupDebugNotice, simpleCalc } from './util';
 
 import { around } from 'monkey-around';
 
@@ -13,9 +13,11 @@ export default class divideAndConquer extends Plugin {
 	settings: typeof DEFAULT_SETTINGS;
 	manifests = this.app.plugins.manifests;
 
-	level = 1;
-	levelEl = this.getLevelText();
-	controlElements: HTMLElement[] = null;
+	pLevel = 1;
+	sLevel = 3;
+	pLevelEl = this.getLevelText();
+	pluginControlElements: HTMLElement[] = null;
+	snippetControlElements: HTMLElement[] = null;
 	enabledColor: string = null;
 	disabledColor: string = null;
 	composed: (func: () => any) => () => any;
@@ -36,9 +38,9 @@ export default class divideAndConquer extends Plugin {
 
 		const notice = () => {
 			removeSetupDebugNotice();
-			let notic_str = `DAC level:${this.level} `;
-			if (this.level === 1) new Notice(notic_str + "- Now in the original state");
-			else if (this.level === 0) new Notice(notic_str + "- All Plugins Enabled");
+			let notic_str = `DAC level:${this.pLevel} `;
+			if (this.pLevel === 1) new Notice(notic_str + "- Now in the original state");
+			else if (this.pLevel === 0) new Notice(notic_str + "- All Plugins Enabled");
 			else new Notice(notic_str);
 		};
 
@@ -60,7 +62,7 @@ export default class divideAndConquer extends Plugin {
 		});
 
 		// override the display of the community plugins tab to add controls
-		const community: CommunityPluginsTab = this.getSettingsTab("community-plugins");
+		const community: Partial<CommunityPluginsTab> = this.getSettingsTab("community-plugins");
 		if (community) this.register(around(community, { display: this.overrideDisplay.bind(this, community) }));
 	}
 
@@ -83,16 +85,16 @@ export default class divideAndConquer extends Plugin {
 	}
 
 	async bisect() {
-		if ((++this.level) === 1) { this.restore(); return; }
+		if ((++this.pLevel) === 1) { this.restore(); return; }
 		const { enabled } = this.getCurrentEDPs();
 		const half = await this.disablePlugins(enabled.slice(0, Math.floor(enabled.length / 2)));
 		if (half.length > 0) this.disabledState.push(new Set(half));
-		else this.level--;
+		else this.pLevel--;
 		return half;
 	}
 
 	public async unBisect() {
-		this.level = this.level > 0 ? this.level - 1 : 0;
+		this.pLevel = this.pLevel > 0 ? this.pLevel - 1 : 0;
 		const { disabled } = this.getCurrentEDPs();
 		await this.enablePlugins(disabled);
 		// this allows unbisect to turn on all plugins without losing the original state
@@ -101,7 +103,7 @@ export default class divideAndConquer extends Plugin {
 	}
 
 	public async reBisect() {
-		if (this.level < 2) {
+		if (this.pLevel < 2) {
 			new Notice("Cannot re-bisect the original state.");
 			return;
 		}
@@ -111,14 +113,14 @@ export default class divideAndConquer extends Plugin {
 		await this.disablePlugins(toDisable);
 		if (toDisable.length > 0) {
 			this.disabledState.push(new Set(toDisable));
-			this.level++;
+			this.pLevel++;
 		}
 	}
 
 
 	public reset() {
 		this.disabledState = this.settings.disabledState = this.snapshot = this.settings.snapshot = undefined;
-		this.level = 1;
+		this.pLevel = 1;
 		let { enabled, disabled } = this.getVaultEDPsFrom(this.getIncludedPlugins() as Set<string>);
 		this.disabledState = [new Set(disabled)];
 		this.snapshot = new Set(disabled);
@@ -256,8 +258,12 @@ export default class divideAndConquer extends Plugin {
 		// no need to reload for snippets
 	}
 
-	getControlContainer() {
-		return this.getSettingsTab("community-plugins").containerEl.find(".setting-item-heading").find(".setting-item-control");
+	getControlContainers() {
+		return {
+			plugins: queryText(this.getSettingsTab("community-plugins").containerEl, ".setting-item-heading", "Installed plugins")
+				.querySelector(".setting-item-control") as HTMLElement,
+			snippets: undefined // queryText(this.getSettingsTab("appearance").containerEl, ".setting-item-heading", "CSS snippets").querySelector(".setting-item-control") as HTMLElement,
+		};
 	}
 
 	getInstalledPluginsContainer() {
@@ -265,7 +271,11 @@ export default class divideAndConquer extends Plugin {
 	}
 
 	getReloadButton() {
-		return this.getControlContainer().find('[aria-label="Reload plugins"]') as HTMLDivElement;
+		let {plugins,snippets} = this.getControlContainers();
+		return {
+			pReload:plugins.find('[aria-label="Reload plugins"]') as HTMLDivElement,
+			sReload:undefined//snippets.find('[aria-label="Reload snippets"]') as HTMLDivElement
+		};
 	}
 
 	getSettingsTab(id: string) {
@@ -274,7 +284,7 @@ export default class divideAndConquer extends Plugin {
 
 	private getLevelText() {
 		let span = document.createElement("span");
-		span.setText(`Level: ${this.level}`);
+		span.setText(`Level: ${this.pLevel}`);
 		return span;
 	}
 
@@ -286,7 +296,7 @@ export default class divideAndConquer extends Plugin {
 					old.apply(community, args); // render the community plugin tab after re-loading the manifests
 					plugin.addControls(); // add the controls back
 					plugin.colorizeIgnoredToggles();
-					let reload = plugin.getReloadButton();
+					let reload = plugin.getReloadButton().pReload;
 					reload.onClickEvent = () => plugin.refreshCommunityTab();
 				});
 			};
@@ -329,43 +339,46 @@ export default class divideAndConquer extends Plugin {
 	}
 
 	private addControls() {
-		let container = this.getControlContainer(), composed = this.composed;
-		this.controlElements ??= [
-			new ExtraButtonComponent(container)
+		let {plugins,snippets} = this.getControlContainers(), composed = this.composed;
+		this.pluginControlElements ??= [
+			new ExtraButtonComponent(plugins)
 				.setIcon("camera")
 				.setTooltip("Reset - Snapshot the current state")
 				.onClick(composed(this.reset))
 				.setDisabled(false).extraSettingsEl,
 
-			new ExtraButtonComponent(container)
+			new ExtraButtonComponent(plugins)
 				.setIcon("switch-camera")
 				.setTooltip("Restore - Restore Snapshot")
 				.onClick(composed(this.restore))
 				.setDisabled(false).extraSettingsEl,
 
-			new ExtraButtonComponent(container)
+			new ExtraButtonComponent(plugins)
 				.setIcon("expand")
 				.setTooltip("UnBisect - Go up a level")
 				.onClick(composed(this.unBisect))
 				.setDisabled(false).extraSettingsEl,
 
-			new ExtraButtonComponent(container)
+			new ExtraButtonComponent(plugins)
 				.setIcon("minimize")
 				.setTooltip("Bisect - Go down a level")
 				.onClick(composed(this.bisect))
 				.setDisabled(false).extraSettingsEl,
 
-			new ExtraButtonComponent(container)
+			new ExtraButtonComponent(plugins)
 				.setIcon("flip-vertical")
 				.setTooltip("Re-bisect - Go back a level, then down the other side")
 				.onClick(composed(this.reBisect))
 				.setDisabled(false).extraSettingsEl,
 
-			this.levelEl,
+			this.pLevelEl,
 		];
-		this.levelEl.setText(`Level: ${this.level}`);
-		this.controlElements.forEach(button => container.appendChild(button));
-		return container;
+		// this.snippetControlElements = this.pluginControlElements.map(e => e.cloneNode(true) as HTMLElement);
+
+		this.pLevelEl.setText(`Level: ${this.pLevel}`);
+		// this.snippetControlElements.last().setText(`Level: ${this.sLevel}`);
+		this.pluginControlElements.forEach(button => plugins.appendChild(button));
+		// this.snippetControlElements.forEach(button => snippets.appendChild(button));
 	}
 
 	private addCommands() {

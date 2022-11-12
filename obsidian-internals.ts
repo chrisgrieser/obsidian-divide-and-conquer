@@ -4,14 +4,24 @@ declare module "obsidian" {
 	interface App {
 		plugins: {
 			plugins: string[];
-			manifests: PluginManifest[];
+			manifests: {[id:string]:PluginManifest};
 			enabledPlugins: Set<string>;
 			disablePluginAndSave: (id: string) => Promise<boolean>;
 			enablePluginAndSave: (id: string) => Promise<boolean>;
+			initialize: () => Promise<void>;
+			loadManifests: () => Promise<void>;
 		};
 		commands: {
 			executeCommandById: (commandID: string) => void;
 		};
+		customCss: {
+			enabledSnippets: Set<string>;
+			snippets: string[];
+			setCssEnabledStatus(snippet: string, enable: boolean): void;
+		};
+		setting: {
+			settingTabs: {id:string, containerEl:HTMLElement}[];
+		}
 	}
 	interface View {
 		renderer: {

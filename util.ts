@@ -16,35 +16,10 @@ export function removeSetupDebugNotice() {
 	}
 }
 
+export function queryText(el:HTMLElement, selector:string, text:string) {
+	return Array.from<HTMLElement>(el.querySelectorAll(selector)).find((heading) => heading.innerText.includes(text));
+}
+
 // compose takes any number of functions, binds them to "_this", and returns a function that calls them in order
 export const compose = (_this:any,...funcs: Function[]) => (...args: any[]) =>
 	funcs.reduce((promise, func) => promise.then(func.bind(_this)), Promise.resolve());
-
-
-// add type safety for the undocumented methods
-declare module "obsidian" {
-	interface App {
-		plugins: {
-			plugins: string[];
-			manifests: {[id:string]:PluginManifest};
-			enabledPlugins: Set<string>;
-			disablePluginAndSave: (id: string) => Promise<boolean>;
-			enablePluginAndSave: (id: string) => Promise<boolean>;
-			initialize: () => Promise<void>;
-			loadManifests: () => Promise<void>;
-		};
-		commands: {
-			executeCommandById: (commandID: string) => void;
-
-		};
-		customCss: {
-			enabledSnippets: Set<string>;
-			snippets: string[];
-			setCssEnabledStatus(snippet: string, enable: boolean): void;
-		};
-		setting: {
-			settingTabs: {id:string, containerEl:HTMLElement}[];
-		}
-
-	}
-}
