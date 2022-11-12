@@ -118,36 +118,36 @@ export default class divideAndConquer extends Plugin {
 	}
 
 	addControls() {
-		let container = this.getControlContainer();
+		let container = this.getControlContainer(), composed = this.composed;
 		this.controlElements ??= [
 			new ExtraButtonComponent(container)
 				.setIcon("camera")
 				.setTooltip("Reset - Snapshot the current state")
-				.onClick(this.composed(this.reset))
+				.onClick(composed(this.reset))
 				.setDisabled(false).extraSettingsEl,
 
 			new ExtraButtonComponent(container)
 				.setIcon("switch-camera")
 				.setTooltip("Restore - Restore Snapshot")
-				.onClick(this.composed(this.restore))
+				.onClick(composed(this.restore))
 				.setDisabled(false).extraSettingsEl,
 
 			new ExtraButtonComponent(container)
 				.setIcon("expand")
 				.setTooltip("UnBisect - Go up a level")
-				.onClick(this.composed(this.unBisect))
+				.onClick(composed(this.unBisect))
 				.setDisabled(false).extraSettingsEl,
 
 			new ExtraButtonComponent(container)
 				.setIcon("minimize")
 				.setTooltip("Bisect - Go down a level")
-				.onClick(this.composed(this.bisect))
+				.onClick(composed(this.bisect))
 				.setDisabled(false).extraSettingsEl,
 
 			new ExtraButtonComponent(container)
 				.setIcon("flip-vertical")
 				.setTooltip("Re-bisect - Go back a level, then down the other side")
-				.onClick(this.composed(this.reBisect))
+				.onClick(composed(this.reBisect))
 				.setDisabled(false).extraSettingsEl,
 
 			this.levelEl,
@@ -175,16 +175,33 @@ export default class divideAndConquer extends Plugin {
 		if (community) this.register(around(community, { display: this.overrideDisplay.bind(this, community) }));
 
 		const notice = () => {
+			// get divs with the 'notice' class, if they contain the text 'plugin setup', remove them
+			let notices = document.querySelectorAll('.notice');
+			for (let i = 0; i < notices.length; i++) {
+				let notice = notices[i];
+				if (notice.innerText.includes('plugin setup')) notice.remove();
+			}
+
 			let notic_str = `DAC level:${this.level} `;
 			if (this.level === 1) new Notice(notic_str + "- Now in the original state");
 			else if (this.level === 0) new Notice(notic_str + "- All Plugins Enabled");
 			else new Notice(notic_str);
 		};
+		
+		let maybeReload = () => {
+			if (this.settings.reloadAfterPluginChanges) // TODO: timeout isn't the best way to do this
+				setTimeout(() => this.app.commands.executeCommandById("app:reload"), 2000); // eslint-disable-line no-magic-numbers
+		};
+
+		let maybeInit = () => {
+			if(this.settings.initializeAfterPluginChanges)
+				return this.app.plugins.initialize();
+		};
 
 		// compose takes any number of functions, binds them to "this", and returns a function that calls them in order
 		let compose = (...funcs: Function[]) => (...args: any[]) =>
 			funcs.reduce((promise, func) => promise.then(func.bind(this)), Promise.resolve());
-		this.composed = (func: () => any) => async () => compose(func, this.refreshPlugins, notice).bind(this)();
+		this.composed = (func: () => any) => async () => compose(func, this.refreshPlugins, maybeReload,maybeInit,notice).bind(this)();
 		const composed = this.composed;
 
 
