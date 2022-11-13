@@ -39,9 +39,11 @@ export function makeArray(collection: HTMLCollection) {
 export function getSnippetItems(tab: SettingsTab) {
 	const headings = tab.containerEl.querySelectorAll(".setting-item-heading");
 	const lastHeading = headings[headings.length - 1];
-	return Array.from(tab.containerEl.children).filter(
-		(child) => child.compareDocumentPosition(lastHeading) & Node.DOCUMENT_POSITION_FOLLOWING
+	let res = Array.from(tab.containerEl.children).filter(
+		(child) => !(child.compareDocumentPosition(lastHeading) & Node.DOCUMENT_POSITION_FOLLOWING)
 	);
+	console.log(res, headings);
+	return res;
 }
 
 export const Modes = [

@@ -10,6 +10,7 @@ declare module "obsidian" {
 			enablePluginAndSave: (id: string) => Promise<boolean>;
 			initialize: () => Promise<void>;
 			loadManifests: () => Promise<void>;
+			requestSaveConfig: () => Promise<void>;
 		};
 		commands: {
 			executeCommandById: (commandID: string) => void;

@@ -3,7 +3,8 @@ import { App, PluginManifest, PluginSettingTab, Setting, TextAreaComponent } fro
 import divideAndConquer from "main";
 
 export interface DACSettings {
-    filterRegexes: string[];
+    pluginFilterRegexes: string[];
+    snippetFilterRegexes: string[];
     filterUsingDisplayName: boolean,
     filterUsingAuthor: boolean,
     filterUsingDescription: boolean,
@@ -14,10 +15,11 @@ export interface DACSettings {
 }
 
 export const DEFAULT_SETTINGS: DACSettings = {
-    filterRegexes: [
+    pluginFilterRegexes: [
         "hot-reload",
         "obsidian-divide-and-conquer"
     ],
+    snippetFilterRegexes: [],
     filterUsingDisplayName: true,
     filterUsingAuthor: false,
     filterUsingDescription: false,
@@ -113,7 +115,7 @@ export class DACSettingsTab extends PluginSettingTab {
                 textArea.inputEl.setAttr('rows', 10);
                 textArea.inputEl.style.width = '45%';
                 textArea.setPlaceholder(
-                    [...(this.plugin.getIncludedPlugins(false) as Set<PluginManifest>)]
+                    [...(this.plugin.getIncludedItems('plugins'))]
                         .map(p => p.name).join('\n')
                 ).setDisabled(true);
             });
@@ -122,21 +124,50 @@ export class DACSettingsTab extends PluginSettingTab {
             textArea.inputEl.style.width = '55%';
             textArea
                 .setPlaceholder('^daily/\n\\.png$\netc...')
-                .setValue(this.plugin.settings.filterRegexes.join('\n'));
+                .setValue(this.plugin.settings.pluginFilterRegexes.join('\n'));
             textArea.inputEl.onblur = (e: FocusEvent) => {
                 const patterns = (e.target as HTMLInputElement).value;
-                this.plugin.settings.filterRegexes = patterns.split('\n').filter(p => p.length);
+                this.plugin.settings.pluginFilterRegexes = patterns.split('\n').filter(p => p.length);
                 this.plugin.saveData();
                 inputArea.setPlaceholder(
-                    [...(this.plugin.getIncludedPlugins(false) as Set<PluginManifest>)]
-                        .map(p => p.name).join('\n')
+                    [...(this.plugin.getIncludedItems('plugins'))].map(p => p.name).join('\n')
                 ).setDisabled(true);
             };
         });
         exclude.controlEl.style.width = '100%';
         exclude.infoEl.style.width = '45%';
 
+        let inputArea2: TextAreaComponent;
 
+        let exclude2 = new Setting(containerEl)
+            .setName('Snippet Exclusions')
+            .setDesc('Exclude snippets using regex (case insensitive).\nEach new line is a new regex. Snippet are only exclude by their name.')
+            .addTextArea((textArea) => {
+                inputArea2 = textArea;
+                textArea.inputEl.setAttr('rows', 10);
+                textArea.inputEl.style.width = '45%';
+                textArea.setPlaceholder(
+                    [...(this.plugin.getIncludedItems('snippets'))].map(p => p.name).join('\n')
+                ).setDisabled(true);
+            });
+        exclude2.addTextArea((textArea) => {
+            textArea.inputEl.setAttr('rows', 10);
+            textArea.inputEl.style.width = '55%';
+            textArea
+                .setPlaceholder('^daily/\n\\.png$\netc...')
+                .setValue(this.plugin.settings.snippetFilterRegexes.join('\n'));
+            textArea.inputEl.onblur = (e: FocusEvent) => {
+                const patterns = (e.target as HTMLInputElement).value;
+                this.plugin.settings.snippetFilterRegexes = patterns.split('\n').filter(p => p.length);
+                this.plugin.saveData();
+                inputArea2.setPlaceholder(
+                    [...(this.plugin.getIncludedItems('snippets'))].map(p => p.name).join('\n')
+                ).setDisabled(true);
+            };
+        });
+        
+        exclude2.controlEl.style.width = '100%';
+        exclude2.infoEl.style.width = '45%';
     }
 
 
