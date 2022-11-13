@@ -6,12 +6,14 @@ import { Modes, compose, getSnippetItems, makeArray, queryText, removeSetupDebug
 import { around } from 'monkey-around';
 
 var tinycolor = require("tinycolor2");
-var xxx;
+
+const CSS_DELAY = 200; // delay after enabling/disabling css to allow for obsidian to relect changes before refreshing
+const RESET_DELAY = 1000; // delay after resetting to allow for obsidian to relect changes before refreshing
+
 // these interfaces allow a level of type checking for the arrays below
 interface DACCommand { id: keyof divideAndConquer; name: string; }
 interface DACButton { id: keyof divideAndConquer; tooltip: string; }
 interface NameNID { name: string; id: string; author?: string; description?: string; }
-let nameNIDEquare = (first: NameNID, second: NameNID) => first.name.localeCompare(second.name) ? 0 : -1;
 
 // prettier-ignore
 const pluginCommands: DACCommand[] = [
@@ -46,14 +48,6 @@ const icons: [keyof divideAndConquer, string][] = [
 	["bisect", "minimize"],
 	["reBisect", "flip-vertical"]
 ];
-
-const delays: [keyof divideAndConquer, number][] = [
-	["reset", 1200],
-	["restore", 1200],
-	["unBisect", 300],
-	["bisect", 300],
-	["reBisect", 300]
-];
 // prettier-ignore
 
 
@@ -70,15 +64,8 @@ export default class divideAndConquer extends Plugin {
 	getFilters: ()  =>  string[];
 
 	private _mode: Mode = "plugins";
-	public get mode(): Mode {
-		return this._mode;
-	}
-	private setMode(mode: Mode) {
-		console.log(`Mode set to ${mode}`);
-		// log the stack trace to help debug
-		// console.trace();
-		this._mode = mode;
-	}
+	public get mode(): Mode { return this._mode; }
+	private setMode(mode: Mode) { this._mode = mode; } // this just makes it more explicit and easier to find where the mode is set
 
 	mode2Call: Map<Mode, Composed> = new Map();
 	mode2Refresh: Map<Mode, () => void> = new Map();
@@ -88,7 +75,6 @@ export default class divideAndConquer extends Plugin {
 	mode2Snapshot: Map<Mode, Set<string>> = new Map();
 	mode2Level: Map<Mode, number> = new Map(Modes.map(mode => [mode, 1]));
 	key2Icon: Map<keyof divideAndConquer, string> = new Map(icons);
-	key2Delay: Map<keyof divideAndConquer, number> = new Map(delays);
 	disableButtons = false;
 
 	get disabledState() { return this.mode2DisabledStates.get(this.mode) ?? []; }
@@ -137,8 +123,8 @@ export default class divideAndConquer extends Plugin {
 		const maybeInit = () => {
 			if (this.settings.initializeAfterPluginChanges) return this.app.plugins.initialize();
 		};
-		// mode2Call stores functions which, when called with a function, return composed functions that will automatically switch modes among other things
 		
+		// mode2Call stores functions which, when called with a function, return composed functions that will automatically switch modes among other things
 		this.mode2Call = new Map(Modes.map(mode => [mode, (f: Func) => async () => compose(this,
 			() => this.setMode(mode),
 			() => console.log('called: ', f.name),
@@ -191,13 +177,12 @@ export default class divideAndConquer extends Plugin {
 		this.enableItem = (id: string)  => {
 			switch(this.mode){
 				case 'plugins': return this.app.plugins.enablePluginAndSave(id);
-				case 'snippets': // resolve a promise that calls  this.app.customCss.setCssEnabledStatus(id, true) after 300ms
+				case 'snippets':
 					return new Promise((resolve) => {
-						this.app.customCss.setCssEnabledStatus(id, true)
-						setTimeout(() => {console.log('here');resolve({})}, 150)
+						this.app.customCss.setCssEnabledStatus(id, true);
+						setTimeout(() =>resolve({}), CSS_DELAY);
 					});
 			}
-
 		}
 
 		this.disableItem = (id: string)  =>  {
@@ -206,7 +191,7 @@ export default class divideAndConquer extends Plugin {
 				case 'snippets': 
 					return new Promise((resolve) => {
 						this.app.customCss.setCssEnabledStatus(id, false)
-						setTimeout(() => {console.log('here');resolve({})}, 150)
+						setTimeout(() => resolve({}), CSS_DELAY)
 					});
 				}
 		}
@@ -229,17 +214,12 @@ export default class divideAndConquer extends Plugin {
 		});
 	}
 
-	
-	
-
 	public async loadData() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await super.loadData());
-		// parse the JSON string into a SetArrayMap
 		this.mode2DisabledStates = this.settings.disabledStates ? new Map(
 			(Object.entries(JSON.parse(this.settings.disabledStates)) as JSONSetArrayMap)
 				.map(([mode, states]) => [mode, states.map(state => new Set(state))])
 		) : new Map();
-		// parse the JSON string into a SetMap
 		this.mode2Snapshot = this.settings.snapshots ? new Map(
 			(Object.entries(JSON.parse(this.settings.snapshots)) as JSONSetArrayMap)
 				.map(([mode, states]) => [mode, new Set(states)])
@@ -247,13 +227,11 @@ export default class divideAndConquer extends Plugin {
 	}
 
 	public async saveData(restore: boolean = true) {
-		// convert SetArrayMap to JSON
 		if (this.mode2DisabledStates) this.settings.disabledStates = JSON.stringify(Object.fromEntries(
 			[...this.mode2DisabledStates.entries()].map(([mode, sets]) => [mode, [...sets].map(set => [...set])])
 		));
 		else this.settings.disabledStates = undefined;
 
-		// convert SetMap to JSON
 		if (this.mode2Snapshot) this.settings.snapshots = JSON.stringify(Object.fromEntries(
 			[...this.mode2Snapshot.entries()].map(([mode, set]) => [mode, [...set]])
 		));
@@ -339,7 +317,7 @@ export default class divideAndConquer extends Plugin {
 		this.disabledState.slice(1).reverse().map((set) => this.enableItems(set));
 		await this.disableItems(this.snapshot);
 		await this.app.plugins.requestSaveConfig();
-		setTimeout(() => this.reset(), this.key2Delay.get('reset')); // obsidian takes it's sweet time to update which plugins are enabled even after the promise resolves
+		setTimeout(() => this.reset(), RESET_DELAY); // obsidian takes it's sweet time to update which plugins are enabled even after the promise resolves
 	}
 
 	public getCurrentState() {
@@ -364,7 +342,6 @@ export default class divideAndConquer extends Plugin {
 	}
 
 	public getIncludedItems(mode?: Mode) {
-		console.log("getIncludedItems", mode);
 		return this.getExcludedItems(mode, true);
 	}
 
@@ -375,8 +352,8 @@ export default class divideAndConquer extends Plugin {
 			(p:NameNID) => outIncluded !== this.getFilters().some(
 				filter => p.id.match(new RegExp(filter, "i"))
 					|| (this.settings.filterUsingDisplayName && p.name.match(new RegExp(filter, "i")))
-					|| (this.settings.filterUsingAuthor && p?.author.match(new RegExp(filter, "i")))
-					|| (this.settings.filterUsingDescription && p?.description.match(new RegExp(filter, "i")))
+					|| (this.settings.filterUsingAuthor && p.author?.match(new RegExp(filter, "i")))
+					|| (this.settings.filterUsingDescription && p.description?.match(new RegExp(filter, "i")))
 			));
 		if(mode) this.setMode(oldmode);
 		return new Set(plugins);
@@ -394,9 +371,7 @@ export default class divideAndConquer extends Plugin {
 		if (items instanceof Set) items = [...items];
 		console.log("Disabling:", items);
 		for (const id of items) {
-			console.log('before disable')
 			await this.disableItem(id);
-			console.log('after disable')
 		}
 		return items;
 	}
