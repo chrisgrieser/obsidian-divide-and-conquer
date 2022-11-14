@@ -15,6 +15,7 @@ interface DACCommand { id: keyof divideAndConquer; name: string; }
 interface DACButton { id: keyof divideAndConquer; tooltip: string; }
 interface NameNID { name: string; id: string; author?: string; description?: string; }
 
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // prettier-ignore
 const pluginCommands: DACCommand[] = [
 	{ id: "reset", 		name: "Plugin Reset - forget the original state and set the current state as the new original state" },
@@ -49,6 +50,7 @@ const icons: [keyof divideAndConquer, string][] = [
 	["reBisect", "flip-vertical"]
 ];
 // prettier-ignore
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 
 export default class divideAndConquer extends Plugin {
@@ -61,7 +63,7 @@ export default class divideAndConquer extends Plugin {
 	getEnabledFromObsidian: () => Set<string>;
 	enableItem: (item: string) => Promise<any>;
 	disableItem: (item: string) => Promise<any>;
-	getFilters: ()  =>  string[];
+	getFilters: () => string[];
 
 	private _mode: Mode = "plugins";
 	public get mode(): Mode { return this._mode; }
@@ -79,7 +81,7 @@ export default class divideAndConquer extends Plugin {
 
 	get disabledState() { return this.mode2DisabledStates.get(this.mode) ?? []; }
 	set disabledState(s) { this.mode2DisabledStates.set(this.mode, s ?? []); }
-	
+
 	get snapshot() { return this.mode2Snapshot.get(this.mode) ?? new Set(); }
 	set snapshot(s) { this.mode2Snapshot.set(this.mode, s ?? new Set()); }
 
@@ -90,10 +92,10 @@ export default class divideAndConquer extends Plugin {
 	get wrapper() { return this.mode2Call.get(this.mode); }
 	get refreshTab() { return this.mode2Refresh.get(this.mode); }
 	set refreshTab(f: () => void) { this.mode2Refresh.set(this.mode, f); }
-	
+
 	set level(l) { this.mode2Level.set(this.mode, l); }
-	get level() { 
-		if(!this.mode2Level.has(this.mode)) this.mode2Level.set(this.mode, 1);
+	get level() {
+		if (!this.mode2Level.has(this.mode)) this.mode2Level.set(this.mode, 1);
 		return this.mode2Level.get(this.mode);
 	}
 
@@ -123,7 +125,7 @@ export default class divideAndConquer extends Plugin {
 		const maybeInit = () => {
 			if (this.settings.initializeAfterPluginChanges) return this.app.plugins.initialize();
 		};
-		
+
 		// mode2Call stores functions which, when called with a function, return composed functions that will automatically switch modes among other things
 		this.mode2Call = new Map(Modes.map(mode => [mode, (f: Func) => async () => compose(this,
 			() => this.setMode(mode),
@@ -134,13 +136,13 @@ export default class divideAndConquer extends Plugin {
 
 
 		//////////// Pretty much anything that differs between modes is specified here //////////////
-		
+
 		// override the display of tabs to add controls
 		this.mode2Tab = new Map<Mode, SettingsTab>(([
 			["plugins", "community-plugins"],
 			["snippets", "appearance"]
 		] as [Mode, string][]).map(([mode, id]) => [mode, this.getSettingsTab(id) as SettingsTab]));
-		
+
 		// store mode specific info in the repective tab
 		Object.assign(
 			this.mode2Tab.get('plugins'),
@@ -149,59 +151,59 @@ export default class divideAndConquer extends Plugin {
 			this.mode2Tab.get('snippets'),
 			{ heading: 'CSS snippets', reloadLabel: 'Reload snippets', reload: () => this.app.customCss.loadSnippets() });
 
-		[...this.mode2Tab.entries()].forEach(([mode,tab]) => this.register(around(tab, { display: this.overrideDisplay.bind(this, mode, tab) })));
+		[...this.mode2Tab.entries()].forEach(([mode, tab]) => this.register(around(tab, { display: this.overrideDisplay.bind(this, mode, tab) })));
 
-		this.getItemEls = ()  => {
-			switch(this.mode){
+		this.getItemEls = () => {
+			switch (this.mode) {
 				case 'plugins': return makeArray(this.tab.containerEl.find(".installed-plugins-container").children);
 				case 'snippets': return getSnippetItems(this.tab);
 				default: throw new Error("Unknown mode: " + this.mode);
 			}
-		}
-		
-		this.getAllItems = ()  => {
-			switch(this.mode){
-				case 'plugins': return new Set(Object.values(this.manifests));
-				case 'snippets': return new Set((this.app.customCss.snippets).map(s => ({name: s, id: s})));
-			}
-		}
+		};
 
-		this.getEnabledFromObsidian = ()  => {
-			switch(this.mode){
+		this.getAllItems = () => {
+			switch (this.mode) {
+				case 'plugins': return new Set(Object.values(this.manifests));
+				case 'snippets': return new Set((this.app.customCss.snippets).map(s => ({ name: s, id: s })));
+			}
+		};
+
+		this.getEnabledFromObsidian = () => {
+			switch (this.mode) {
 				case 'plugins': return this.app.plugins.enabledPlugins;
 				// enabledSnippets can sometimes annoyingly include snippets that were removed without disabling 
 				case 'snippets': return new Set(this.app.customCss.snippets.filter((snippet) => this.app.customCss.enabledSnippets.has(snippet)));
 			}
-		}
+		};
 
-		this.enableItem = (id: string)  => {
-			switch(this.mode){
+		this.enableItem = (id: string) => {
+			switch (this.mode) {
 				case 'plugins': return this.app.plugins.enablePluginAndSave(id);
 				case 'snippets':
 					return new Promise((resolve) => {
 						this.app.customCss.setCssEnabledStatus(id, true);
-						setTimeout(() =>resolve({}), CSS_DELAY);
+						setTimeout(() => resolve({}), CSS_DELAY);
 					});
 			}
-		}
+		};
 
-		this.disableItem = (id: string)  =>  {
-			switch(this.mode){
+		this.disableItem = (id: string) => {
+			switch (this.mode) {
 				case 'plugins': return this.app.plugins.disablePluginAndSave(id);
-				case 'snippets': 
+				case 'snippets':
 					return new Promise((resolve) => {
-						this.app.customCss.setCssEnabledStatus(id, false)
-						setTimeout(() => resolve({}), CSS_DELAY)
+						this.app.customCss.setCssEnabledStatus(id, false);
+						setTimeout(() => resolve({}), CSS_DELAY);
 					});
-				}
-		}
+			}
+		};
 
 		this.getFilters = () => {
-			switch(this.mode){
+			switch (this.mode) {
 				case 'plugins': return this.settings.pluginFilterRegexes;
 				case 'snippets': return this.settings.snippetFilterRegexes;
 			}
-		}
+		};
 
 		////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -302,12 +304,12 @@ export default class divideAndConquer extends Plugin {
 
 
 	public reset() {
-			this.disabledState = this.snapshot =  undefined;
-			this.level = 1;
-			let { enabled, disabled } = this.getEnabledDisabled();
-			this.disabledState = [new Set(disabled)];
-			this.snapshot = new Set(disabled);
-			this.saveData(false);
+		this.disabledState = this.snapshot = undefined;
+		this.level = 1;
+		let { enabled, disabled } = this.getEnabledDisabled();
+		this.disabledState = [new Set(disabled)];
+		this.snapshot = new Set(disabled);
+		this.saveData(false);
 	}
 
 	public async restore() {
@@ -345,17 +347,17 @@ export default class divideAndConquer extends Plugin {
 		return this.getExcludedItems(mode, true);
 	}
 
-	public getExcludedItems(mode?:Mode, outIncluded:boolean=false) {
+	public getExcludedItems(mode?: Mode, outIncluded: boolean = false) {
 		let oldmode = this.mode;
-		if(mode) this.setMode(mode);
+		if (mode) this.setMode(mode);
 		const plugins = [...this.getAllItems()].filter(
-			(p:NameNID) => outIncluded !== this.getFilters().some(
+			(p: NameNID) => outIncluded !== this.getFilters().some(
 				filter => p.id.match(new RegExp(filter, "i"))
 					|| (this.settings.filterUsingDisplayName && p.name.match(new RegExp(filter, "i")))
 					|| (this.settings.filterUsingAuthor && p.author?.match(new RegExp(filter, "i")))
 					|| (this.settings.filterUsingDescription && p.description?.match(new RegExp(filter, "i")))
 			));
-		if(mode) this.setMode(oldmode);
+		if (mode) this.setMode(oldmode);
 		return new Set(plugins);
 	}
 
@@ -397,7 +399,7 @@ export default class divideAndConquer extends Plugin {
 		return span;
 	}
 
-	private overrideDisplay(mode:Mode, tab: SettingsTab, old: any) {
+	private overrideDisplay(mode: Mode, tab: SettingsTab, old: any) {
 		let plugin = this;
 		return (function display(...args: any[]) {
 			plugin.setMode(mode);
@@ -421,7 +423,7 @@ export default class divideAndConquer extends Plugin {
 		let name2Toggle = this.createToggleMap(this.getItemEls());
 		// for now, regex filtering is only for plugins
 		let included = new Set([...(this.getIncludedItems())].map(m => m.name));
-		console.log('included', included,this.getIncludedItems(), name2Toggle)
+		console.log('included', included, this.getIncludedItems(), name2Toggle);
 
 		for (let [name, toggle] of name2Toggle) {
 			// if the plugin is filtered by regex settings, we indicate this visually by coloring the toggle
@@ -456,7 +458,7 @@ export default class divideAndConquer extends Plugin {
 		return name2Toggle;
 	}
 
-	private wrapCall(mode:Mode, key:keyof divideAndConquer) {
+	private wrapCall(mode: Mode, key: keyof divideAndConquer) {
 		return this.wrapper(this[key] as Func);
 	}
 
