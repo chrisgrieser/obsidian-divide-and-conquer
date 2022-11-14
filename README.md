@@ -19,7 +19,7 @@ For either Plugin/Snippet:
 - Un-Bisect - Undo the last bisection, or enable all plugins if in the original state
 - Re-Bisect - Undo the last bisection, then disable the other half
 
-* ___After Resetting, DAC won't enable any plugins that you disable manually. Restoring only enables plugins that DAC disabled, and disables any that were already disabled when you last reset___
+\* ___After Resetting, DAC won't enable any plugins that you disable manually. Restoring only enables plugins that DAC disabled, and disables any that were already disabled when you last reset___
 
 (Note that to be able to fulfill its duty, this plugin will never disable itself. The Hot Reload Plugin will also never be disabled, to avoid interference for developers.)
 
