@@ -1,166 +1,104 @@
-import { CommunityPluginsTab, ExtraButtonComponent, Notice, Plugin, PluginManifest } from "obsidian";
+import { Command, ExtraButtonComponent, Notice, Plugin, PluginManifest, SettingsTab } from "obsidian";
+import type { Composed, Func, JSONSetArrayMap, Mode } from "./util";
 import { DACSettingsTab, DEFAULT_SETTINGS } from "settings";
+import { Modes, compose, getSnippetItems, makeArray, queryText, removeSetupDebugNotice, simpleCalc } from './util';
 
 import { around } from 'monkey-around';
 
 var tinycolor = require("tinycolor2");
 
-// add type safety for the undocumented methods
-declare module "obsidian" {
-	interface App {
-		plugins: {
-			plugins: string[];
-			manifests: {string:PluginManifest};
-			enabledPlugins: Set<string>;
-			disablePluginAndSave: (id: string) => Promise<boolean>;
-			enablePluginAndSave: (id: string) => Promise<boolean>;
-		};
-		commands: {
-			executeCommandById: (commandID: string) => void;
+const CSS_DELAY = 200; // delay after enabling/disabling css to allow for obsidian to relect changes before refreshing
+const RESET_DELAY = 1000; // delay after resetting to allow for obsidian to relect changes before refreshing
 
-		};
-		customCss: {
-			enabledSnippets: Set<string>;
-			snippets: string[];
-			setCssEnabledStatus(snippet: string, enable: boolean): void;
-		};
+// these interfaces allow a level of type checking for the arrays below
+interface DACCommand { id: keyof divideAndConquer; name: string; }
+interface DACButton { id: keyof divideAndConquer; tooltip: string; }
+interface NameNID { name: string; id: string; author?: string; description?: string; }
 
-	}
-}
+/* eslint-disable @typescript-eslint/no-unused-vars */
+// prettier-ignore
+const pluginCommands: DACCommand[] = [
+	{ id: "reset", 		name: "Plugin Reset - forget the original state and set the current state as the new original state" },
+	{ id: "restore", 	name: "Plugin Restore - return to the original state" },
+	{ id: "unBisect", 	name: "Plugin Un-Bisect - Undo the last bisection, or enable all plugins if in the original state" },
+	{ id: "bisect", 	name: "Plugin Bisect - Disable half of the active plugins, or return to the original state if all plugins are active" },
+	{ id: "reBisect", 	name: "Plugin Re-Bisect - Undo the last bisection, then disable the other half" },
+];
 
+const snippetCommands: DACCommand[] = [
+	{ id: "reset", 		name: "Snippet Reset - forget the original state and set the current state as the new original state" },
+	{ id: "restore", 	name: "Snippet Restore - return to the original state" },
+	{ id: "unBisect", 	name: "Snippet Un-Bisect - Undo the last bisection, or enable all snippets if in the original state" },
+	{ id: "bisect", 	name: "Snippet Bisect - Disable half of the active snippets, or return to the original state if all snippets are active" },
+	{ id: "reBisect", 	name: "Snippet Re-Bisect - Undo the last bisection, then disable the other half" },
+];
 
-// accepts a string and checks if it is a calc expression (limited to percentages and addition/subtraction) and returns the resulting string
-function simpleCalc(str: string) {
-	const calcRegex = /calc\((\d+)%\s*([+-])\s*(\d+)%\)/;
-	const match = str.match(calcRegex);
-	if (!match) return str;
-	const [_, a, op, b] = match;
-	const result = op === "+" ? +a + +b : +a - +b;
-	return str.replace(calcRegex, `${result}%`);
-}
+// the ordering of these determines the order in the settings tab
+const UIButtons: DACButton[] = [
+	{ id: "reset", 		tooltip: "Reset - Snapshot the current state" },
+	{ id: "restore", 	tooltip: "Restore - Restore Snapshot" },
+	{ id: "unBisect", 	tooltip: "UnBisect - Go up a level" },
+	{ id: "bisect", 	tooltip: "Bisect - Go down a level" },
+	{ id: "reBisect", 	tooltip: "Re-bisect - Go back a level, then down the other side" },
+];
+
+const icons: [keyof divideAndConquer, string][] = [
+	["reset", "camera"],
+	["restore", "switch-camera"],
+	["unBisect", "expand"],
+	["bisect", "minimize"],
+	["reBisect", "flip-vertical"]
+];
+// prettier-ignore
+/* eslint-enable @typescript-eslint/no-unused-vars */
+
 
 export default class divideAndConquer extends Plugin {
 	settings: typeof DEFAULT_SETTINGS;
-	disabledState: Set<string>[];
 	manifests = this.app.plugins.manifests;
-	level = 1;
-	controlElements: HTMLElement[] = null;
-	levelEl = this.getLevelText();
 	enabledColor: string = null;
 	disabledColor: string = null;
-	snapshot:Set<string>;
+	getItemEls: () => Element[];
+	getAllItems: () => Set<NameNID>;
+	getEnabledFromObsidian: () => Set<string>;
+	enableItem: (item: string) => Promise<any>;
+	disableItem: (item: string) => Promise<any>;
+	getFilters: () => string[];
 
-	// composed is an async function that accepts a function and returns a function
-	composed: (func: () => any) => () => any;
-	refreshPlugins: () => void = () => { };
+	private _mode: Mode = "plugins";
+	public get mode(): Mode { return this._mode; }
+	private setMode(mode: Mode) { this._mode = mode; } // this just makes it more explicit and easier to find where the mode is set
 
-	getLevelText() {
-		let span = document.createElement("span");
-		span.setText(`Level: ${this.level}`);
-		return span;
-	}
-	getControlContainer() {
-		return this.getSettingsTab("community-plugins").containerEl.find(".setting-item-heading").find(".setting-item-control") as HTMLDivElement;
-	}
-	getInstalledPluginsContainer() {
-		return this.getSettingsTab("community-plugins").containerEl.find(".installed-plugins-container") as HTMLDivElement;
-	}
-	getReloadButton() {
-		return this.getControlContainer().find('[aria-label="Reload plugins"]') as HTMLDivElement;
-	}
+	mode2Call: Map<Mode, Composed> = new Map();
+	mode2Refresh: Map<Mode, () => void> = new Map();
+	mode2Tab: Map<Mode, SettingsTab> = new Map();
+	mode2Controls: Map<Mode, HTMLElement[]> = new Map();
+	mode2DisabledStates: Map<Mode, Set<string>[]> = new Map();
+	mode2Snapshot: Map<Mode, Set<string>> = new Map();
+	mode2Level: Map<Mode, number> = new Map(Modes.map(mode => [mode, 1]));
+	key2Icon: Map<keyof divideAndConquer, string> = new Map(icons);
+	disableButtons = false;
 
-	overrideDisplay(community: CommunityPluginsTab, old: any) {
-		let plugin = this;
-		return (function display(...args: any[]) {
-			plugin.refreshPlugins = () => {
-				plugin.app.plugins.loadManifests().then(() => {
-					old.apply(community, args); // render the community plugin tab after re-loading the manifests
-					plugin.addControls(); // add the controls back
-					plugin.colorizeIgnoredToggles();
-				});
-			};
-			plugin.refreshPlugins();
-		}).bind(plugin, community);
-	}
-	
+	get disabledState() { return this.mode2DisabledStates.get(this.mode) ?? []; }
+	set disabledState(s) { this.mode2DisabledStates.set(this.mode, s ?? []); }
 
-	colorizeIgnoredToggles() {
-		let container = this.getInstalledPluginsContainer();
-		let name2Toggle = new Map<string, HTMLDivElement>();
-		for (var i = 0; i < container.children.length; i++) {
-			let child = container.children[i];
-			let name = (child.querySelector(".setting-item-name") as HTMLDivElement).innerText;
-			let toggle = (child.querySelector(".setting-item-control")).querySelector('.checkbox-container') as HTMLDivElement;
-			if (name && toggle) name2Toggle.set(name, toggle);
-		}
+	get snapshot() { return this.mode2Snapshot.get(this.mode) ?? new Set(); }
+	set snapshot(s) { this.mode2Snapshot.set(this.mode, s ?? new Set()); }
 
-		let included = new Set([...(this.getIncludedPlugins(false) as Set<PluginManifest>)].map(m => m.name));
-		for (let [name, toggle] of name2Toggle){
-			// if the plugin is filtered by regex settings, we indicate this visually by coloring the toggle
-			if (!included.has(name)) {
-				let colorToggle = () => {
-					if (toggle.classList.contains('is-enabled')) toggle.style.backgroundColor = this.enabledColor;
-					else toggle.style.backgroundColor = this.disabledColor;
-				};
-				colorToggle();
-				toggle.addEventListener('click', colorToggle);
-			}
-			
-			// console.log(this.manifests);
-			let id = Object.keys(this.manifests).filter(k => this.manifests[k].name === name).shift();
-			// if the plugin is in the snapshot, we indicate this visually by setting outline-offset: 1px; and outline: outset;
-			if (this.snapshot && this.snapshot.has(id)) {
-				toggle.style.outlineOffset = "1px";
-				toggle.style.outline = "outset";
-			}
-		}
+	get controls() { return this.mode2Controls.get(this.mode) ?? []; }
+	set controls(c) { this.mode2Controls.set(this.mode, c ?? []); }
 
+	get tab() { return this.mode2Tab.get(this.mode); }
+	get wrapper() { return this.mode2Call.get(this.mode); }
+	get refreshTab() { return this.mode2Refresh.get(this.mode); }
+	set refreshTab(f: () => void) { this.mode2Refresh.set(this.mode, f); }
+
+	set level(l) { this.mode2Level.set(this.mode, l); }
+	get level() {
+		if (!this.mode2Level.has(this.mode)) this.mode2Level.set(this.mode, 1);
+		return this.mode2Level.get(this.mode);
 	}
 
-	addControls() {
-		let container = this.getControlContainer(), composed = this.composed;
-		this.controlElements ??= [
-			new ExtraButtonComponent(container)
-				.setIcon("camera")
-				.setTooltip("Reset - Snapshot the current state")
-				.onClick(composed(this.reset))
-				.setDisabled(false).extraSettingsEl,
-
-			new ExtraButtonComponent(container)
-				.setIcon("switch-camera")
-				.setTooltip("Restore - Restore Snapshot")
-				.onClick(composed(this.restore))
-				.setDisabled(false).extraSettingsEl,
-
-			new ExtraButtonComponent(container)
-				.setIcon("expand")
-				.setTooltip("UnBisect - Go up a level")
-				.onClick(composed(this.unBisect))
-				.setDisabled(false).extraSettingsEl,
-
-			new ExtraButtonComponent(container)
-				.setIcon("minimize")
-				.setTooltip("Bisect - Go down a level")
-				.onClick(composed(this.bisect))
-				.setDisabled(false).extraSettingsEl,
-
-			new ExtraButtonComponent(container)
-				.setIcon("flip-vertical")
-				.setTooltip("Re-bisect - Go back a level, then down the other side")
-				.onClick(composed(this.reBisect))
-				.setDisabled(false).extraSettingsEl,
-
-			this.levelEl,
-		];
-		this.levelEl.setText(`Level: ${this.level}`);
-		this.controlElements.forEach(button => container.appendChild(button));
-		return container;
-	}
-
-
-	getSettingsTab(id: string) {
-		return this.app.setting.settingTabs.filter(t => t.id === id).shift();
-	}
 
 	async onunload() {
 		this.saveData();
@@ -168,147 +106,173 @@ export default class divideAndConquer extends Plugin {
 	}
 
 	async onload() {
-		this.loadData();
-		console.log("Divide & Conquer Plugin loaded.");
-
-		const community: CommunityPluginsTab = this.getSettingsTab("community-plugins");
-		if (community) this.register(around(community, { display: this.overrideDisplay.bind(this, community) }));
-
-		const notice = () => {
-			// get divs with the 'notice' class, if they contain the text 'plugin setup', remove them
-			let notices = document.querySelectorAll('.notice');
-			for (let i = 0; i < notices.length; i++) {
-				let notice = notices[i];
-				if (notice.innerText.includes('plugin setup')) notice.remove();
-			}
-
-			let notic_str = `DAC level:${this.level} `;
-			if (this.level === 1) new Notice(notic_str + "- Now in the original state");
-			else if (this.level === 0) new Notice(notic_str + "- All Plugins Enabled");
-			else new Notice(notic_str);
-		};
-		
-		let maybeReload = () => {
-			if (this.settings.reloadAfterPluginChanges) // TODO: timeout isn't the best way to do this
-				setTimeout(() => this.app.commands.executeCommandById("app:reload"), 2000); // eslint-disable-line no-magic-numbers
-		};
-
-		let maybeInit = () => {
-			if(this.settings.initializeAfterPluginChanges)
-				return this.app.plugins.initialize();
-		};
-
-		// compose takes any number of functions, binds them to "this", and returns a function that calls them in order
-		let compose = (...funcs: Function[]) => (...args: any[]) =>
-			funcs.reduce((promise, func) => promise.then(func.bind(this)), Promise.resolve());
-		this.composed = (func: () => any) => async () => compose(func, this.refreshPlugins, maybeReload,maybeInit,notice).bind(this)();
-		const composed = this.composed;
-
-
 		await this.loadData();
 		this.addSettingTab(new DACSettingsTab(this.app, this));
+		console.log("Divide & Conquer Plugin loaded.");
 
-		this.addCommand({
-			id: "bisect",
-			name: "Bisect - Disable half of the active plugins, or return to the original state if all plugins are active",
-			callback: composed(this.bisect)
-		});
+		const notice = () => {
+			removeSetupDebugNotice(); // these have no timeout
+			let notic_str = `${this.mode} level:${this.level} `;
+			if (this.level === 1) new Notice(notic_str + "- Now in the original state");
+			else if (this.level === 0) new Notice(notic_str + "- Enabled All");
+			else new Notice(notic_str);
+		};
 
-		this.addCommand({
-			id: "un-bisect",
-			name: "Un-Bisect - Undo the last bisection, or enable all plugins if in the original state",
-			callback: composed(this.unBisect)
-		});
+		const maybeReload = () => {
+			if (this.settings.reloadAfterPluginChanges) setTimeout(() => this.app.commands.executeCommandById("app:reload"), 2000);
+		};
 
-		this.addCommand({
-			id: "re-bisect",
-			name: "Re-Bisect - Undo the last bisection, then disable the other half",
-			callback: composed(this.reBisect)
-		});
+		const maybeInit = () => {
+			if (this.settings.initializeAfterPluginChanges) return this.app.plugins.initialize();
+		};
 
-		this.addCommand({
-			id: "reset",
-			name: "Reset - forget the original state and set the current state as the new original state",
-			callback: composed(this.reset)
-		});
+		// mode2Call stores functions which, when called with a function, return composed functions that will automatically switch modes among other things
+		this.mode2Call = new Map(Modes.map(mode => [mode, (f: Func) => async () => compose(this,
+			() => this.setMode(mode),
+			() => console.log('called: ', f.name),
+			f, () => this.mode2Refresh.get(this.mode)(), maybeReload, maybeInit, notice
+		).bind(this)()]));
 
-		this.addCommand({
-			id: "restore",
-			name: "Restore - return to the original state",
-			callback: composed(this.restore)
-		});
 
-		this.addCommand({
-			id: "count-enabled-and-disabled-snippets",
-			name: "Count enabled and disabled snippets",
-			callback: () => this.divideConquerSnippets("count"),
-		});
 
-		this.addCommand({
-			id: "disable-all-snippets",
-			name: "Disable all snippets",
-			callback: () => this.divideConquerSnippets("disable", "all"),
-		});
+		//////////// Pretty much anything that differs between modes is specified here //////////////
 
-		this.addCommand({
-			id: "enable-all-snippets",
-			name: "Enable all snippets",
-			callback: () => this.divideConquerSnippets("enable", "all"),
-		});
+		// override the display of tabs to add controls
+		this.mode2Tab = new Map<Mode, SettingsTab>(([
+			["plugins", "community-plugins"],
+			["snippets", "appearance"]
+		] as [Mode, string][]).map(([mode, id]) => [mode, this.getSettingsTab(id) as SettingsTab]));
 
-		this.addCommand({
-			id: "toggle-all-snippets",
-			name: "Toggle all plugins (Disable enabled snippets & enable disabled ones)",
-			callback: () => this.divideConquerSnippets("toggle", "all"),
-		});
+		// store mode specific info in the repective tab
+		Object.assign(
+			this.mode2Tab.get('plugins'),
+			{ heading: 'Installed plugins', reloadLabel: 'Reload plugins', reload: () => this.app.plugins.loadManifests() });
+		Object.assign(
+			this.mode2Tab.get('snippets'),
+			{ heading: 'CSS snippets', reloadLabel: 'Reload snippets', reload: () => this.app.customCss.loadSnippets() });
 
-		this.addCommand({
-			id: "disable-half-snippets",
-			name: "Disable half of enabled snippets",
-			callback: () => this.divideConquerSnippets("disable", "half"),
-		});
+		[...this.mode2Tab.entries()].forEach(([mode, tab]) => this.register(around(tab, { display: this.overrideDisplay.bind(this, mode, tab) })));
 
-		this.addCommand({
-			id: "enable-half-snippets",
-			name: "Enable half of disabled snippets",
-			callback: () => this.divideConquerSnippets("enable", "half"),
-		});
+		this.getItemEls = () => {
+			switch (this.mode) {
+				case 'plugins': return makeArray(this.tab.containerEl.find(".installed-plugins-container").children);
+				case 'snippets': return getSnippetItems(this.tab);
+				default: throw new Error("Unknown mode: " + this.mode);
+			}
+		};
 
+		this.getAllItems = () => {
+			switch (this.mode) {
+				case 'plugins': return new Set(Object.values(this.manifests));
+				case 'snippets': return new Set((this.app.customCss.snippets).map(s => ({ name: s, id: s })));
+			}
+		};
+
+		this.getEnabledFromObsidian = () => {
+			switch (this.mode) {
+				case 'plugins': return this.app.plugins.enabledPlugins;
+				// enabledSnippets can sometimes annoyingly include snippets that were removed without disabling 
+				case 'snippets': return new Set(this.app.customCss.snippets.filter((snippet) => this.app.customCss.enabledSnippets.has(snippet)));
+			}
+		};
+
+		this.enableItem = (id: string) => {
+			switch (this.mode) {
+				case 'plugins': return this.app.plugins.enablePluginAndSave(id);
+				case 'snippets':
+					return new Promise((resolve) => {
+						this.app.customCss.setCssEnabledStatus(id, true);
+						setTimeout(() => resolve({}), CSS_DELAY);
+					});
+			}
+		};
+
+		this.disableItem = (id: string) => {
+			switch (this.mode) {
+				case 'plugins': return this.app.plugins.disablePluginAndSave(id);
+				case 'snippets':
+					return new Promise((resolve) => {
+						this.app.customCss.setCssEnabledStatus(id, false);
+						setTimeout(() => resolve({}), CSS_DELAY);
+					});
+			}
+		};
+
+		this.getFilters = () => {
+			switch (this.mode) {
+				case 'plugins': return this.settings.pluginFilterRegexes;
+				case 'snippets': return this.settings.snippetFilterRegexes;
+			}
+		};
+
+		////////////////////////////////////////////////////////////////////////////////////////////
+
+		this.addCommands();
+		// when the workspace is ready, get the computed checkbox colors
 		this.app.workspace.onLayoutReady(() => {
 			let appContainer = document.getElementsByClassName("app-container").item(0) as HTMLDivElement;
 			this.enabledColor ??= tinycolor(simpleCalc(appContainer.getCssPropertyValue('--checkbox-color'))).spin(180).toHexString();
 			this.disabledColor ??= tinycolor(this.enabledColor).darken(35).toHexString();
-			console.log(
-				appContainer.getCssPropertyValue('--checkbox-color'),
-				simpleCalc(appContainer.getCssPropertyValue('--checkbox-color')),
-				tinycolor(simpleCalc(appContainer.getCssPropertyValue('--checkbox-color'))).spin(180).toString(),
-				tinycolor(simpleCalc(appContainer.getCssPropertyValue('--checkbox-color'))).spin(180).toHexString(),
-			);
 		});
 	}
 
 	public async loadData() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await super.loadData());
-		this.disabledState = this.settings.disabledState ?
-			JSON.parse(this.settings.disabledState).map((set: string[]) => new Set(set))
-			: undefined;
-		this.snapshot = this.settings.snapshot ? new Set(JSON.parse(this.settings.snapshot)) : undefined;
+		this.mode2DisabledStates = this.settings.disabledStates ? new Map(
+			(Object.entries(JSON.parse(this.settings.disabledStates)) as JSONSetArrayMap)
+				.map(([mode, states]) => [mode, states.map(state => new Set(state))])
+		) : new Map();
+		this.mode2Snapshot = this.settings.snapshots ? new Map(
+			(Object.entries(JSON.parse(this.settings.snapshots)) as JSONSetArrayMap)
+				.map(([mode, states]) => [mode, new Set(states)])
+		) : new Map();
 	}
 
 	public async saveData(restore: boolean = true) {
-		if (this.disabledState?.length > 0)
-			this.settings.disabledState = JSON.stringify(this.disabledState.map(set => [...set]));
-		else this.settings.disabledState = undefined;
-		if (this.snapshot) this.settings.snapshot = JSON.stringify([...this.snapshot]);
-		else this.settings.snapshot = undefined;
+		if (this.mode2DisabledStates) this.settings.disabledStates = JSON.stringify(Object.fromEntries(
+			[...this.mode2DisabledStates.entries()].map(([mode, sets]) => [mode, [...sets].map(set => [...set])])
+		));
+		else this.settings.disabledStates = undefined;
+
+		if (this.mode2Snapshot) this.settings.snapshots = JSON.stringify(Object.fromEntries(
+			[...this.mode2Snapshot.entries()].map(([mode, set]) => [mode, [...set]])
+		));
+		else this.settings.snapshots = undefined;
+
 		if (restore) await this.restore();
 		await super.saveData(this.settings);
 	}
 
+	private addControls() {
+		let container = this.getControlContainer();
+		this.mode2Controls ??= new Map<Mode, HTMLDivElement[]>();
+		if (!this.mode2Controls.has(this.mode)) this.mode2Controls.set(this.mode,
+			[...UIButtons.map(o => new ExtraButtonComponent(container)
+				.setTooltip(o.tooltip)
+				.setIcon(this.key2Icon.get(o.id))
+				.onClick(this.wrapCall(this.mode, o.id))
+				.setDisabled(false).extraSettingsEl
+			), this.createLevelText()]
+		);
+		this.controls.last().setText(`Level: ${this.mode2Level.get(this.mode)}`);
+		this.controls.forEach(control => container.appendChild(control));
+	}
+
+	private addCommands() {
+		type PC = Partial<Command>;
+		pluginCommands.forEach(command => this.addCommand(
+			Object.assign(command, { callback: this.mode2Call.get('plugins')(this[command.id] as Func) } as PC)
+		));
+		snippetCommands.forEach(command => this.addCommand(
+			Object.assign(command, { callback: this.mode2Call.get('snippets')(this[command.id] as Func) } as PC)
+		));
+	}
+
 	async bisect() {
-		if ((++this.level) === 1) { this.restore(); return; }
-		const { enabled } = this.getCurrentEDPs();
-		const half = await this.disablePlugins(enabled.slice(0, Math.floor(enabled.length / 2)));
+		this.level = this.level + 1;
+		if ((this.level) === 1) { this.restore(); return; }
+		const { enabled } = this.getCurrentState();
+		const half = await this.disableItems(enabled.slice(0, Math.floor(enabled.length / 2)));
 		if (half.length > 0) this.disabledState.push(new Set(half));
 		else this.level--;
 		return half;
@@ -316,8 +280,8 @@ export default class divideAndConquer extends Plugin {
 
 	public async unBisect() {
 		this.level = this.level > 0 ? this.level - 1 : 0;
-		const { disabled } = this.getCurrentEDPs();
-		await this.enablePlugins(disabled);
+		const { disabled } = this.getCurrentState();
+		await this.enableItems(disabled);
 		// this allows unbisect to turn on all plugins without losing the original state
 		if (this.disabledState.length > 1) return this.disabledState.pop();
 		return new Set();
@@ -329,154 +293,176 @@ export default class divideAndConquer extends Plugin {
 			return;
 		}
 		const reenabled = await this.unBisect();
-		const { enabled } = this.getCurrentEDPs();
+		const { enabled } = this.getCurrentState();
 		const toDisable = enabled.filter(id => !reenabled.has(id));
-		await this.disablePlugins(toDisable);
+		await this.disableItems(toDisable);
 		if (toDisable.length > 0) {
 			this.disabledState.push(new Set(toDisable));
-			this.level++;
+			this.level = this.level + 1;
 		}
 	}
 
 
 	public reset() {
-		this.disabledState = this.settings.disabledState = this.snapshot = this.settings.snapshot = undefined;
+		this.disabledState = this.snapshot = undefined;
 		this.level = 1;
-		let {enabled,disabled}= this.getVaultEDPsFrom(this.getIncludedPlugins() as Set<string>);
+		let { enabled, disabled } = this.getEnabledDisabled();
 		this.disabledState = [new Set(disabled)];
 		this.snapshot = new Set(disabled);
 		this.saveData(false);
 	}
 
 	public async restore() {
-		if (!this.disabledState) return;
-		for (let i = this.disabledState.length - 1; i >= 1; i--)
-			this.enablePlugins(this.disabledState[i]);
-		console.log(this.snapshot)
-		await this.disablePlugins(this.snapshot);
-		this.reset();
+		if (this.disabledState.length < 1) return;
+		// log the current time
+		// ignore the first state (since it's the original state) and disable the rest in the order they were disabled
+		this.disabledState.slice(1).reverse().map((set) => this.enableItems(set));
+		await this.disableItems(this.snapshot);
+		await this.app.plugins.requestSaveConfig();
+		setTimeout(() => this.reset(), RESET_DELAY); // obsidian takes it's sweet time to update which plugins are enabled even after the promise resolves
 	}
 
-	// EDPs = Enabled/Disabled Plugins
-	public getCurrentEDPs() {
-		const { enabled, disabled } = this.getVaultEDPsFrom(this.getIncludedPlugins() as Set<string>);
-		this.disabledState ??= [new Set(disabled)];
+	public getCurrentState() {
+		const { enabled, disabled } = this.getEnabledDisabled();
+		this.disabledState = this.disabledState.length < 1 ? [new Set(disabled)] : this.disabledState;
 		const currentDisabled = this.disabledState.last();
 		return { enabled, disabled: currentDisabled };
 	}
 
-	// EDPs = Enabled/Disabled Plugins
-	public getVaultEDPsFrom(from?: Set<string>) {
-		from ??= new Set(Object.keys(this.manifests));
-		// sort by display name rather than id
-		let included = Object.entries<PluginManifest>(this.manifests).filter(([key]) => from.has(key))
-			.sort((a, b) => b[1].name.localeCompare(a[1].name))
-			.map(([key, manifest]) => key);
-
+	public getEnabledDisabled() {
+		// the whole point of using sets is constant time lookup, but js is dumb and does strict object equality with no allowance for custom comparators
+		// with our small data sets, it probably won't hurt performance but this is technically O(n^2)
+		let excluded = [...this.getExcludedItems()];
+		let included = [...this.getAllItems()].filter(item => !excluded.some(i => i.id === item.id))
+			.sort((a, b) => b.name.localeCompare(a.name)) // sort by display name rather than id
+			.map((item) => item.id);
 		let result = {
-			enabled: included.filter(id => this.app.plugins.enabledPlugins.has(id)),
-			disabled: included.filter(id => !this.app.plugins.enabledPlugins.has(id))
+			enabled: included.filter(id => this.getEnabledFromObsidian().has(id)),
+			disabled: included.filter(id => !this.getEnabledFromObsidian().has(id))
 		};
 		return result;
 	}
 
-	public getIncludedPlugins(getPluginIds: boolean = true) {
-		const plugins = (Object.values(this.manifests) as unknown as PluginManifest[]).filter(
-			p => !this.settings.filterRegexes.some(
+	public getIncludedItems(mode?: Mode) {
+		return this.getExcludedItems(mode, true);
+	}
+
+	public getExcludedItems(mode?: Mode, outIncluded: boolean = false) {
+		let oldmode = this.mode;
+		if (mode) this.setMode(mode);
+		const plugins = [...this.getAllItems()].filter(
+			(p: NameNID) => outIncluded !== this.getFilters().some(
 				filter => p.id.match(new RegExp(filter, "i"))
 					|| (this.settings.filterUsingDisplayName && p.name.match(new RegExp(filter, "i")))
-					|| (this.settings.filterUsingAuthor && p.author.match(new RegExp(filter, "i")))
-					|| (this.settings.filterUsingDescription && p.description.match(new RegExp(filter, "i")))
+					|| (this.settings.filterUsingAuthor && p.author?.match(new RegExp(filter, "i")))
+					|| (this.settings.filterUsingDescription && p.description?.match(new RegExp(filter, "i")))
 			));
-		return getPluginIds ? new Set(plugins.map(p => p.id)) : new Set(plugins);
+		if (mode) this.setMode(oldmode);
+		return new Set(plugins);
 	}
 
 	// enables in the reverse order that they were disabled (probably not necessary, but it's nice to be consistent)
-	async enablePlugins(plugins: string[] | Set<string>) {
-		if (plugins instanceof Set) plugins = [...plugins];
-		plugins.reverse().forEach(id => this.app.plugins.enablePluginAndSave(id));
-		return plugins;
+	async enableItems(items: string[] | Set<string>) {
+		if (items instanceof Set) items = [...items];
+		console.log("Enabling:", items);
+		items.reverse().map(id => this.enableItem(id));
+		return items;
 	}
 
-	async disablePlugins(plugins: string[] | Set<string>) {
-		if (plugins instanceof Set) plugins = [...plugins];
-		for (const id of plugins) await this.app.plugins.disablePluginAndSave(id);
-		return plugins;
-	}
-	async divideConquerSnippets(mode: string, scope?: string) {
-		console.log("Mode: " + mode + ", Scope: " + scope);
-		const reloadDelay = 2000;
-
-		let noticeText;
-
-		/** Enabled can include snippets that were removed without disabling. */
-		/** This array is the list of currently loaded snippets. */
-		const allSnippets = this.app.customCss.snippets;
-		const enabledSnippets = allSnippets.filter((snippet) =>
-			this.app.customCss.enabledSnippets.has(snippet)
-		);
-		const disabledSnippets = allSnippets.filter(
-			(snippet) => !this.app.customCss.enabledSnippets.has(snippet)
-		);
-
-		if (mode === "count") {
-			noticeText =
-				"Total: " +
-				allSnippets.length +
-				"\nDisabled: " +
-				disabledSnippets.length +
-				"\nEnabled: " +
-				enabledSnippets.length;
+	async disableItems(items: string[] | Set<string>) {
+		if (items instanceof Set) items = [...items];
+		console.log("Disabling:", items);
+		for (const id of items) {
+			await this.disableItem(id);
 		}
+		return items;
+	}
 
-		if (scope === "all") {
-			if (mode === "enable") {
-				for (const snippet of disabledSnippets)
-					await this.app.customCss.setCssEnabledStatus(snippet, true);
-			} else if (mode === "disable") {
-				for (const snippet of enabledSnippets)
-					await this.app.customCss.setCssEnabledStatus(snippet, false);
-			} else if (mode === "toggle") {
-				for (const snippet of enabledSnippets)
-					await this.app.customCss.setCssEnabledStatus(snippet, false);
-				for (const snippet of disabledSnippets)
-					await this.app.customCss.setCssEnabledStatus(snippet, true);
+	getControlContainer(tab?: SettingsTab) {
+		tab ??= this.tab;
+		return queryText(tab.containerEl, ".setting-item-heading", tab.heading).querySelector(".setting-item-control") as HTMLElement;
+	}
+
+	getReloadButton(tab?: SettingsTab) {
+		tab ??= this.mode2Tab.get(this.mode);
+		let controls = this.getControlContainer(tab);
+		return controls.find(`[aria-label="${tab.reloadLabel}"]`) as HTMLDivElement;
+	}
+
+	getSettingsTab(id: string) {
+		return this.app.setting.settingTabs.filter(t => t.id === id).shift() as Partial<SettingsTab>;
+	}
+
+	private createLevelText() {
+		let span = document.createElement("span");
+		span.setText(`Level: ${this.level}`);
+		return span;
+	}
+
+	private overrideDisplay(mode: Mode, tab: SettingsTab, old: any) {
+		let plugin = this;
+		return (function display(...args: any[]) {
+			plugin.setMode(mode);
+			plugin.refreshTab = () => {
+				console.log("refreshing tab", mode);
+				plugin.setMode(mode);
+				tab.reload().then(() => {
+					old.apply(tab, args); // render the tab after re-loading the plugins/snippets
+					plugin.addControls(); // add the controls back
+					plugin.colorizeIgnoredToggles();
+					// let reload = plugin.getReloadButton();
+					// reload.onClickEvent = () => plugin.refreshTab();
+				});
+			};
+			plugin.refreshTab();
+		}).bind(plugin, tab);
+	}
+
+
+	private colorizeIgnoredToggles() {
+		let name2Toggle = this.createToggleMap(this.getItemEls());
+		// for now, regex filtering is only for plugins
+		let included = new Set([...(this.getIncludedItems())].map(m => m.name));
+		console.log('included', included, this.getIncludedItems(), name2Toggle);
+
+		for (let [name, toggle] of name2Toggle) {
+			// if the plugin is filtered by regex settings, we indicate this visually by coloring the toggle
+			if (!included?.has(name)) {
+				let colorToggle = () => {
+					if (toggle.classList.contains('is-enabled')) toggle.style.backgroundColor = this.enabledColor;
+					else toggle.style.backgroundColor = this.disabledColor;
+				};
+				colorToggle();
+				toggle.addEventListener('click', colorToggle);
 			}
-			noticeText =
-				mode.charAt(0).toUpperCase() +
-				mode.slice(1, -1) +
-				"ing all " +
-				allSnippets.length.toString() +
-				" snippets";
-		}
 
-		if (scope === "half") {
-			if (mode === "enable") {
-				const disabled = disabledSnippets.length;
-				const half = Math.ceil(disabled / 2);
-				const halfOfDisabled = disabledSnippets.slice(0, half);
-
-				for (const snippet of halfOfDisabled)
-					await this.app.customCss.setCssEnabledStatus(snippet, true);
-				noticeText = "Enabling " + half.toString() + " out of " + disabled.toString() + " disabled snippets.";
-
-			} else if (mode === "disable") {
-				const enabled = enabledSnippets.length;
-				const half = Math.ceil(enabled / 2);
-				const halfOfEnabled = enabledSnippets.slice(0, half);
-
-				for (const snippet of halfOfEnabled)
-					await this.app.customCss.setCssEnabledStatus(snippet, false);
-				noticeText = "Disabling " + half.toString() + " out of " + enabled.toString() + " enabled snippets.";
+			let id = [...this.getAllItems()].find(p => p.name == name)?.id;
+			// if the plugin is in the snapshot, we indicate this visually by outlining
+			if (id && this.snapshot && this.snapshot.has(id)) {
+				toggle.style.outlineOffset = "1px";
+				toggle.style.outline = "outset";
 			}
 		}
 
-		// Notify
-		new Notice(noticeText);
-
-		// no need to reload for snippets
-
 	}
+
+	private createToggleMap(items: Element[]) {
+		let name2Toggle = new Map<string, HTMLDivElement>();
+		for (var i = 0; i < items.length; i++) {
+			let child = items[i];
+			let name = (child.querySelector(".setting-item-name") as HTMLDivElement).innerText;
+			let toggle = (child.querySelector(".setting-item-control")).querySelector('.checkbox-container') as HTMLDivElement;
+			if (name && toggle)
+				name2Toggle.set(name, toggle);
+		}
+		return name2Toggle;
+	}
+
+	private wrapCall(mode: Mode, key: keyof divideAndConquer) {
+		return this.wrapper(this[key] as Func);
+	}
+
 
 
 }
+

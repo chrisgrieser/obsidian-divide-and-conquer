@@ -23,6 +23,7 @@
 	"dependencies": {
 		"@types/tinycolor": "^1.1.27",
 		"monkey-around": "^2.3.0",
-		"tinycolor2": "^1.4.2"
+		"tinycolor2": "^1.4.2",
+		"typescript-super-set": "^1.0.0"
 	}
 }

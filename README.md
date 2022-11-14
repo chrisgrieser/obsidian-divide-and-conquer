@@ -3,6 +3,9 @@
 ![](https://img.shields.io/github/downloads/chrisgrieser/obsidian-divide-and-conquer/total?label=Total%20Downloads&style=plastic) ![](https://img.shields.io/github/v/release/chrisgrieser/obsidian-divide-and-conquer?label=Latest%20Release&style=plastic) [![](https://img.shields.io/badge/changelog-click%20here-FFE800?style=plastic)](Changelog.md)
 
 An [Obsidian](https://obsidian.md/) plugin that provides commands for bulk enabling/disabling of plugins and CSS Snippets. Useful for debugging when you have many plugins or CSS snippets.
+![DAC Snippet Demo](https://user-images.githubusercontent.com/31261158/201551797-0a278ec8-e6e9-4285-b633-bfec015e1c15.gif)
+
+
 
 ## Table of Contents
 <!-- MarkdownTOC levels="2" -->
@@ -21,17 +24,21 @@ You have a problem with Obsidian and have confirmed that the issue goes away whe
 Even though that process is the quickest method of finding the culprit-plugin, it is still quite cumbersome for power users who have 40, 50 or more plugins. *Divide & Conquer* provides some useful commands for bulk disabling/enabling of plugins, to make the power user's life easier.
 
 ## Commands Added
-- Disable half of the enabled plugins
-- Enable half of the disabled plugins
-- Disable all plugins
-- Enable all plugins
-- Toggle all plugins (Disable enabled plugins & enable disabled ones)
-- Count enabled and disabled plugins
+For either Plugin/Snippet:
+- Reset - save the current state as the 'original state' (level 1)
+- Restore - return to the original state*
+- Bisect - Disable half of the active items, or if all are active (you're at 'level 0') return to the original state (level 1)
+- Un-Bisect - Undo the last bisection, or enable all plugins if in the original state
+- Re-Bisect - Undo the last bisection, then disable the other half
+
+* ___After Resetting, DAC won't enable any plugins that you disable manually. Restoring only enables plugins that DAC disabled, and disables any that were already disabled when you last reset___
 
 (Note that to be able to fulfill its duty, this plugin will never disable itself. The Hot Reload Plugin will also never be disabled, to avoid interference for developers.)
 
-## Conquer CSS Snippets
-You can also divide and conquer your CSS snippets, the commands and the mechanics are exactly the same.
+## Settings
+The plugin/snippet exclusion is [regex](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions) enabled, and you can exclude by author or description as well (e.g. 'command palette' to exclude any plugins that modify the command palette)
+![DAC Settings Demo](https://user-images.githubusercontent.com/31261158/201551906-d6b732f5-66db-4747-9349-3efcb7aad3e9.gif)
+
 
 ## Installation
 The plugin is available via Obsidian's Community Plugin Browser: `Settings` → `Community Plugins` → `Browse` → Search for *"Divide & Conquer"*

@@ -4,14 +4,26 @@ declare module "obsidian" {
 	interface App {
 		plugins: {
 			plugins: string[];
-			manifests: PluginManifest[];
+			manifests: {[id:string]:PluginManifest};
 			enabledPlugins: Set<string>;
 			disablePluginAndSave: (id: string) => Promise<boolean>;
 			enablePluginAndSave: (id: string) => Promise<boolean>;
+			initialize: () => Promise<void>;
+			loadManifests: () => Promise<void>;
+			requestSaveConfig: () => Promise<void>;
 		};
 		commands: {
 			executeCommandById: (commandID: string) => void;
 		};
+		customCss: {
+			enabledSnippets: Set<string>;
+			snippets: string[];
+			setCssEnabledStatus(snippet: string, enable: boolean): void;
+			loadSnippets(): Promise<void>;
+		};
+		setting: {
+			settingTabs: {id:string, containerEl:HTMLElement}[];
+		}
 	}
 	interface View {
 		renderer: {
@@ -35,11 +47,13 @@ declare module "obsidian" {
 		},
 	}
 
-    interface CommunityPluginsTab {
-        installedPluginsEl: HTMLElement;
+    interface SettingsTab {
         containerEl: HTMLElement;
         navEl: HTMLElement;
         display(...args: any[]): void;
         hide(): any;
+		reload(): Promise<void>;
+		heading:string;
+		reloadLabel: string;
     }
 }
