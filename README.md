@@ -2,7 +2,7 @@
 
 ![](https://img.shields.io/github/downloads/chrisgrieser/obsidian-divide-and-conquer/total?label=Total%20Downloads&style=plastic) ![](https://img.shields.io/github/v/release/chrisgrieser/obsidian-divide-and-conquer?label=Latest%20Release&style=plastic) [![](https://img.shields.io/badge/changelog-click%20here-FFE800?style=plastic)](Changelog.md)
 
-An [Obsidian](https://obsidian.md/) plugin that provides commands for bulk enabling/disabling of plugins and CSS Snippets. Useful for debugging when you have many plugins or CSS snippets.
+An [Obsidian](https://obsidian.md/) plugin that provides commands for bulk enabling/disabling of plugins and CSS Snippets. This allows you to quickly find which plugins are causing bugs or performance problems.
 ![DAC Snippet Demo](https://user-images.githubusercontent.com/31261158/201551797-0a278ec8-e6e9-4285-b633-bfec015e1c15.gif)
 
 
