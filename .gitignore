@@ -1,18 +1,6 @@
 # npm
 node_modules
-package-lock.json
 
 # obsidian
 data.json
 main.js
-
-# Mac
-.DS_Store
-
-# Info for me
-Info for me.md
-
-# Other
-.git
-.history
-
