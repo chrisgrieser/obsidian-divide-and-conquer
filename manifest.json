@@ -4,6 +4,6 @@
     "version": "1.0.0",
     "minAppVersion": "0.13.19",
     "description": "Provides commands for bulk enabling/disabling of plugins. Useful for debugging when you have many plugins.",
-    "author": "geoffreysflaminglasersword & pseudometa",
+    "author": "geoffreysflaminglasersword & Chris Grieser (aka pseudometa)",
     "isDesktopOnly": false
 }
