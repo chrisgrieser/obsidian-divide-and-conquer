@@ -1,8 +1,7 @@
 import { App, PluginManifest, PluginSettingTab, Setting, TextAreaComponent, ToggleComponent } from "obsidian";
 
 import type { Mode } from "./util";
-import { around } from 'monkey-around';
-import divideAndConquer from "main";
+import divideAndConquer from "./main";
 
 export interface DACSettings {
     pluginFilterRegexes: string[];
